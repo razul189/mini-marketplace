@@ -420,3 +420,18 @@ class MyListingsResource(Resource):
         if args.get("category_id"):
             qs = qs.filter_by(category_id=args["category_id"])
         return listings_schema.dump(qs.all()), 200
+    
+
+# --- Register API Resources ---
+
+api.add_resource(SignupResource, "/api/signup")
+api.add_resource(LoginResource, "/api/login")
+api.add_resource(MeResource, "/api/me")
+api.add_resource(MyCategoriesResource, "/api/me/categories")
+api.add_resource(CategoryListResource, "/api/categories")
+api.add_resource(CategoryResource, "/api/categories/<int:id>")
+api.add_resource(FavoriteListResource, "/api/favorites")
+api.add_resource(FavoriteResource, "/api/favorites/<int:id>")
+api.add_resource(ListingListResource, "/api/listings")
+api.add_resource(ListingResource, "/api/listings/<int:id>")
+api.add_resource(MyListingsResource, "/api/me/listings")
