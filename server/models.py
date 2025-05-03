@@ -7,7 +7,7 @@ from config import db
 
 class User(db.Model):
 
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     # Primary key with auto-incrementing integer
     id = db.Column(db.Integer, primary_key=True)
@@ -25,7 +25,7 @@ class User(db.Model):
     )
     # Relationship to Favorite objects
     favorite_items = db.relationship(
-        "Favorite", backref="user", lazy="dynamic", cascade="all, delete-orphan"
+        "Favorite", backref="users", lazy="dynamic", cascade="all, delete-orphan"
     )
 
     # Derived relationship to categories through listings
@@ -45,14 +45,14 @@ class User(db.Model):
 
 
 class Category(db.Model):
-    __tablename__ = "category"
+    __tablename__ = "categories"
 
     # Primary key with auto-incrementing integer
     id = db.Column(db.Integer, primary_key=True)
     # Unique category name, required
     name = db.Column(db.String(64), unique=True, nullable=False)
     # Relationship to ItemListing objects in this category
-    listings = db.relationship("ItemListing", backref="category", lazy="dynamic")
+    listings = db.relationship("ItemListing", backref="categories", lazy="dynamic")
 
     # Derived relationship to users through listings
     @property
@@ -65,7 +65,7 @@ class Category(db.Model):
 
 
 class ItemListing(db.Model):
-    __tablename__ = "item_listing"
+    __tablename__ = "item_listings"
 
     # Primary key with auto-incrementing integer
     id = db.Column(db.Integer, primary_key=True)
@@ -82,39 +82,39 @@ class ItemListing(db.Model):
     # Foreign key to the owning user
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("user.id", ondelete="CASCADE"),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     # Foreign key to the category
     category_id = db.Column(
         db.Integer,
-        db.ForeignKey("category.id", ondelete="SET NULL"),
+        db.ForeignKey("categories.id", ondelete="SET NULL"),
         nullable=True,
     )
     # Relationship to Favorite objects
     favorited_by = db.relationship(
         "Favorite",
-        backref="listing",
+        backref="listings",
         lazy="dynamic",
         passive_deletes=True,
     )
 
 
 class Favorite(db.Model):
-    __tablename__ = "favorite"
+    __tablename__ = "favorites"
 
     # Primary key with auto-incrementing integer
     id = db.Column(db.Integer, primary_key=True)
     # Foreign key to the user
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("user.id", ondelete="CASCADE"),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
     # Foreign key to the item listing
     item_listing_id = db.Column(
         db.Integer,
-        db.ForeignKey("item_listing.id", ondelete="CASCADE"),
+        db.ForeignKey("item_listings.id", ondelete="CASCADE"),
         nullable=False,
     )
     # Optional note about the favorite, fully implemented for functionality
