@@ -435,3 +435,16 @@ api.add_resource(FavoriteResource, "/api/favorites/<int:id>")
 api.add_resource(ListingListResource, "/api/listings")
 api.add_resource(ListingResource, "/api/listings/<int:id>")
 api.add_resource(MyListingsResource, "/api/me/listings")
+
+# Set up the event listener within an application context
+with app.app_context():
+
+    @event.listens_for(db.engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
+if __name__ == "__main__":
+    app.run(port=5000, debug=True)
