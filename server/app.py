@@ -125,3 +125,14 @@ class FavoriteSchema(SQLAlchemyAutoSchema):
             "self": f"/api/favorites/{obj.id}",
             "listing": f"/api/listings/{obj.item_listing_id}",
         }
+    
+
+# --- Schema Instances ---
+
+user_schema = UserSchema()
+cat_schema = CategorySchema()
+cats_schema = CategorySchema(many=True)
+fav_schema = FavoriteSchema()
+favs_schema = FavoriteSchema(many=True)
+listing_schema = ItemListingSchema()
+listings_schema = ItemListingSchema(many=True)
