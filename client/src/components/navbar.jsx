@@ -256,8 +256,4 @@ export default function Navbar() {
       )}
     </nav>
   );
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> saved-work
