@@ -75,7 +75,7 @@ export default function Navbar() {
               fontSize: "0.9rem",
             }}
           >
-            Listings
+            My Listings
           </Link>
           <Link
             to="/my-categories"

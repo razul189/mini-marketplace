@@ -4,8 +4,13 @@ from config import db
 
 # --- Model Definitions ---
 
-
 class User(db.Model):
+    """
+    User model representing a registered user in the application.
+
+    Stores user authentication details and relationships to their listings and favorites.
+    Provides a derived relationship to categories through item listings.
+    """
 
     __tablename__ = "users"
 
@@ -25,12 +30,18 @@ class User(db.Model):
     )
     # Relationship to Favorite objects
     favorite_items = db.relationship(
-        "Favorite", backref="users", lazy="dynamic", cascade="all, delete-orphan"
+        "Favorite", backref="user", lazy="dynamic", cascade="all, delete-orphan"
     )
 
     # Derived relationship to categories through listings
     @property
     def categories(self):
+        """
+        Get distinct categories associated with the user's listings.
+
+        Returns:
+            list: List of Category objects the user has listings in.
+        """
         return (
             Category.query.join(ItemListing)
             .filter(ItemListing.user_id == self.id)
@@ -38,13 +49,21 @@ class User(db.Model):
         )
 
     def set_password(self, password):
+       
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
+       
         return check_password_hash(self.password_hash, password)
 
-
 class Category(db.Model):
+    """
+    Category model representing a category for organizing item listings.
+
+    Stores category name and relationships to associated listings.
+    Provides a derived relationship to users through item listings.
+    """
+
     __tablename__ = "categories"
 
     # Primary key with auto-incrementing integer
@@ -52,19 +71,26 @@ class Category(db.Model):
     # Unique category name, required
     name = db.Column(db.String(64), unique=True, nullable=False)
     # Relationship to ItemListing objects in this category
-    listings = db.relationship("ItemListing", backref="categories", lazy="dynamic")
+    listings = db.relationship("ItemListing", backref="category", lazy="dynamic")
 
     # Derived relationship to users through listings
     @property
     def users(self):
+
         return (
             User.query.join(ItemListing)
             .filter(ItemListing.category_id == self.id)
             .distinct()
         )
 
-
 class ItemListing(db.Model):
+    """
+    ItemListing model representing an item listing created by a user.
+
+    Stores details about the item, its owner, and category.
+    Acts as the intermediary for the many-to-many relationship between User and Category.
+    """
+
     __tablename__ = "item_listings"
 
     # Primary key with auto-incrementing integer
@@ -94,13 +120,19 @@ class ItemListing(db.Model):
     # Relationship to Favorite objects
     favorited_by = db.relationship(
         "Favorite",
-        backref="listings",
+        backref="listing",
         lazy="dynamic",
         passive_deletes=True,
     )
 
-
 class Favorite(db.Model):
+    """
+    Favorite model representing a user's favorited item listing.
+
+    Stores the relationship between a user and an item listing with an optional note.
+    Replaces the previous association table with a full model to include additional attributes.
+    """
+
     __tablename__ = "favorites"
 
     # Primary key with auto-incrementing integer
