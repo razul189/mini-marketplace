@@ -16,7 +16,7 @@ A full-stack web application where users can sign up, create item listings, orga
 
 ---
 
-## Technologies Used
+##  Technologies Used
 
 ### Backend:
 - Python 3.8+
@@ -36,13 +36,13 @@ A full-stack web application where users can sign up, create item listings, orga
 
 ---
 
-## Models and Relationships
+##  Models and Relationships
 
 - **User**: has many `ItemListings`, has many `Favorites`
 - **Category**: has many `ItemListings`
 - **ItemListing**: belongs to a `User` and a `Category`
 - **User** has many `Categories` through `ItemListings` (many-to-many via model)
-- **Favorite**: belongs to both `User` and `ItemListing`, includes a `note`
+- **Favorite**: belongs to both `User` and `ItemListing`, includes `note`
 
 ---
 
@@ -57,26 +57,22 @@ source .venv/bin/activate
 pip install -r requirements.txt
 flask db upgrade
 python app.py
-2. Frontend Setup (React Client)
-bash
-Copy
-Edit
-cd client/
+```
+
+### 1. Frontend Setup
+
+```bash
+cd client
 npm install
 npm run dev
-Visit http://localhost:5173 in your browser.
+```
 
-New Features
+### New Features
 This project implements two new technologies not taught in the core curriculum:
+-Redux Toolkit — for global authentication state
+-Marshmallow — for backend schema validation and advanced serialization
 
-Redux Toolkit — for global authentication state
-
-Marshmallow — for backend schema validation and advanced serialization
-
-Authentication
-JWT tokens are stored in localStorage and managed with Redux Toolkit.
-
-Protected routes (like My Listings, My Categories, and Dashboard) automatically redirect unauthenticated users to the login page.
-
-Logging out clears the JWT and resets authentication state.
-
+### Authentication
+JWTs are stored in localStorage and accessed via Redux
+Protected routes (like My Listings, My Categories, Dashboard) redirect unauthenticated users
+Logout clears JWT and resets app state
