@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import Navbar from "./navbar";
+import { addFavorites } from "../store/favoritesSlice";
+import { addListings } from "../store/listingsSlice";
 
 /**
  * Listing component that fetches and displays details of a single item listing
@@ -21,6 +23,9 @@ export default function Listing() {
 
   // Get JWT token from Redux store
   const token = useSelector((state) => state.auth.token);
+  const cachedListings = useSelector((state) => state.listings.byId);
+  const cachedFavorites = useSelector((state) => state.favorites.byId);
+  const dispatch = useDispatch();
 
   // Fetch listing and favorite status when component mounts or ID changes
   useEffect(() => {
@@ -29,55 +34,69 @@ export default function Listing() {
         setIsLoading(true);
 
         // Fetch listing
-        const listingResponse = await fetch(
-          `http://localhost:5000/api/listings/${id}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          }
-        );
 
-        if (!listingResponse.ok) {
-          if (listingResponse.status === 404) {
-            throw new Error("Listing not found");
-          }
-          throw new Error(`Failed to fetch listing: ${listingResponse.status}`);
-        }
-
-        const listingData = await listingResponse.json();
-        setListing(listingData);
-
-        // Fetch favorites if authenticated
-        if (token) {
-          const favoritesResponse = await fetch(
-            `http://localhost:5000/api/favorites`,
+        const cachedListing = cachedListings[id];
+        if (!cachedListing) {
+          const listingResponse = await fetch(
+            `http://localhost:5000/api/listings/${id}`,
             {
               headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
               },
             }
           );
 
-          if (
-            favoritesResponse.status === 401 ||
-            favoritesResponse.status === 422
-          ) {
-            setIsFavorited(false);
-          } else if (!favoritesResponse.ok) {
-            throw new Error("Failed to fetch favorites");
-          } else {
-            const favoritesData = await favoritesResponse.json();
-            const favorite = favoritesData.find(
-              (fav) => fav.item_listing_id === parseInt(id)
-            );
-            setIsFavorited(!!favorite);
-            if (favorite && favorite.note) {
-              setNote(favorite.note);
-            } else {
-              setNote("");
+          if (!listingResponse.ok) {
+            if (listingResponse.status === 404) {
+              throw new Error("Listing not found");
             }
+            throw new Error(
+              `Failed to fetch listing: ${listingResponse.status}`
+            );
+          }
+
+          const listingData = await listingResponse.json();
+          dispatch(addListings([listingData]));
+          setListing(listingData);
+        } else {
+          setListing(cachedListing);
+        }
+
+        // Fetch favorites if authenticated
+        if (token) {
+          const favorite = Object.values(cachedFavorites).find(
+            (fav) => fav.item_listing_id === parseInt(id)
+          );
+          if (!favorite) {
+            const favoritesResponse = await fetch(
+              `http://localhost:5000/api/favorites`,
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+
+            if (
+              favoritesResponse.status === 401 ||
+              favoritesResponse.status === 422
+            ) {
+              setIsFavorited(false);
+            } else if (!favoritesResponse.ok) {
+              throw new Error("Failed to fetch favorites");
+            } else {
+              const favoritesData = await favoritesResponse.json();
+              dispatch(addFavorites(favoritesData));
+              const fav = favoritesData.find(
+                (fav) => fav.item_listing_id === parseInt(id)
+              );
+              setIsFavorited(!!fav);
+              setNote(fav?.note || "");
+            }
+          } else {
+            setIsFavorited(true);
+            setNote(favorite.note || "");
           }
         }
       } catch (err) {
@@ -88,7 +107,7 @@ export default function Listing() {
     };
 
     fetchListingAndFavorites();
-  }, [id, token]);
+  }, [id, token, cachedFavorites, cachedListings, dispatch]);
 
   // Toggle favorite status
   const handleToggleFavorite = async () => {

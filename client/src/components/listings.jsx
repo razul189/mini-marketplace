@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
+import { addMyListings } from "../store/myListingsSlice";
+import { addCategories } from "../store/categoriesSlice";
 
 /**
  * Listings component that fetches and displays the authenticated user's listings.
@@ -17,6 +19,8 @@ export default function Listings() {
   // Redux auth state
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const cachedCategories = useSelector((state) => state.categories.byId);
+  const cachedMyListings = useSelector((state) => state.myListings.byId);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -26,7 +30,11 @@ export default function Listings() {
 
   // Fetch listings and categories when component mounts or category changes
   useEffect(() => {
+    console.log("useEFfect");
+
     const fetchData = async () => {
+      //  console.log("fetchData");
+
       if (!isAuthenticated || !token) {
         setError("Please log in to view your listings");
         navigate("/login");
@@ -37,50 +45,68 @@ export default function Listings() {
         setIsLoading(true);
 
         // Fetch categories
-        const categoriesResponse = await fetch(
-          "http://localhost:5000/api/categories",
-          {
+        if (Object.values(cachedCategories).length === 0) {
+          const categoriesResponse = await fetch(
+            "http://localhost:5000/api/categories",
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          if (categoriesResponse.status === 401) {
+            dispatch({ type: "CLEAR_AUTH" });
+            navigate("/login");
+            return;
+          }
+          if (!categoriesResponse.ok) {
+            throw new Error(
+              `Failed to fetch categories: ${categoriesResponse.status}`
+            );
+          }
+          const categoriesData = await categoriesResponse.json();
+          console.log("categoriesData:", categoriesData);
+
+          dispatch(addCategories(categoriesData));
+          setCategories(categoriesData);
+        } else {
+          setCategories(Object.values(cachedCategories));
+        }
+
+        // Fetch user's listings (with optional category filter)
+        const filteredListings = selectedCategoryId
+          ? Object.values(cachedMyListings).filter(
+              (listing) => listing.category_id === parseInt(selectedCategoryId)
+            )
+          : Object.values(cachedMyListings);
+
+        if (filteredListings.length === 0) {
+          const listingsUrl = selectedCategoryId
+            ? `http://localhost:5000/api/me/listings?category_id=${selectedCategoryId}`
+            : "http://localhost:5000/api/me/listings";
+          const listingsResponse = await fetch(listingsUrl, {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+          });
+          if (listingsResponse.status === 401) {
+            dispatch({ type: "CLEAR_AUTH" });
+            navigate("/login");
+            return;
           }
-        );
-        if (categoriesResponse.status === 401) {
-          dispatch({ type: "CLEAR_AUTH" });
-          navigate("/login");
-          return;
+          if (!listingsResponse.ok) {
+            throw new Error(
+              `Failed to fetch listings: ${listingsResponse.status}`
+            );
+          }
+          const listingsData = await listingsResponse.json();
+          dispatch(addMyListings(listingsData));
+          setListings(listingsData);
+        } else {
+          setListings(filteredListings);
         }
-        if (!categoriesResponse.ok) {
-          throw new Error(
-            `Failed to fetch categories: ${categoriesResponse.status}`
-          );
-        }
-        const categoriesData = await categoriesResponse.json();
-        setCategories(categoriesData);
-
-        // Fetch user's listings (with optional category filter)
-        const listingsUrl = selectedCategoryId
-          ? `http://localhost:5000/api/me/listings?category_id=${selectedCategoryId}`
-          : "http://localhost:5000/api/me/listings";
-        const listingsResponse = await fetch(listingsUrl, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (listingsResponse.status === 401) {
-          dispatch({ type: "CLEAR_AUTH" });
-          navigate("/login");
-          return;
-        }
-        if (!listingsResponse.ok) {
-          throw new Error(
-            `Failed to fetch listings: ${listingsResponse.status}`
-          );
-        }
-        const listingsData = await listingsResponse.json();
-        setListings(listingsData);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -89,7 +115,15 @@ export default function Listings() {
     };
 
     fetchData();
-  }, [selectedCategoryId, isAuthenticated, token, dispatch, navigate]);
+  }, [
+    selectedCategoryId,
+    isAuthenticated,
+    token,
+    cachedCategories,
+    cachedMyListings,
+    dispatch,
+    navigate,
+  ]);
 
   // Handle category selection
   const handleCategoryChange = (e) => {

@@ -1,6 +1,9 @@
 import Navbar from "./navbar";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { addListings } from "../store/listingsSlice";
+import { addCategories } from "../store/categoriesSlice";
+import { useDispatch, useSelector } from "react-redux";
 
 /**
  * Home component for the application's landing page.
@@ -15,46 +18,72 @@ export default function Home() {
   // Handle URL query parameters
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedCategoryId = searchParams.get("category_id") || "";
+  const cachedCategories = useSelector((state) => state.categories.byId);
+  const cachedListings = useSelector((state) => state.listings.byId);
+  const dispatch = useDispatch();
 
   // Fetch listings and categories when component mounts or category changes
   useEffect(() => {
     const fetchData = async () => {
+      console.log("fetchData()");
+
       try {
         setIsLoading(true);
 
         // Fetch categories
-        const categoriesResponse = await fetch(
-          "http://localhost:5000/api/categories",
-          {
+        if (Object.values(cachedCategories).length === 0) {
+          const categoriesResponse = await fetch(
+            "http://localhost:5000/api/categories",
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (!categoriesResponse.ok) {
+            throw new Error(
+              `Failed to fetch categories: ${categoriesResponse.status}`
+            );
+          }
+          const categoriesData = await categoriesResponse.json();
+          dispatch(addCategories(categoriesData));
+          setCategories(categoriesData);
+        } else {
+          setCategories(Object.values(cachedCategories));
+        }
+
+        // Fetch listings (with optional category filter)
+
+        const filteredListings = selectedCategoryId
+          ? Object.values(cachedListings).filter(
+              (listing) => listing.category_id === parseInt(selectedCategoryId)
+            )
+          : Object.values(cachedListings);
+
+        console.log("filteredListings:", filteredListings);
+
+        if (filteredListings.length === 0) {
+          const listingsUrl = selectedCategoryId
+            ? `http://localhost:5000/api/listings?category_id=${selectedCategoryId}`
+            : "http://localhost:5000/api/listings";
+          const listingsResponse = await fetch(listingsUrl, {
             headers: {
               "Content-Type": "application/json",
             },
+          });
+          if (!listingsResponse.ok) {
+            throw new Error(
+              `Failed to fetch listings: ${listingsResponse.status}`
+            );
           }
-        );
-        if (!categoriesResponse.ok) {
-          throw new Error(
-            `Failed to fetch categories: ${categoriesResponse.status}`
-          );
-        }
-        const categoriesData = await categoriesResponse.json();
-        setCategories(categoriesData);
+          const listingsData = await listingsResponse.json();
+          console.log("listingsData:", listingsData);
 
-        // Fetch listings (with optional category filter)
-        const listingsUrl = selectedCategoryId
-          ? `http://localhost:5000/api/listings?category_id=${selectedCategoryId}`
-          : "http://localhost:5000/api/listings";
-        const listingsResponse = await fetch(listingsUrl, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-        if (!listingsResponse.ok) {
-          throw new Error(
-            `Failed to fetch listings: ${listingsResponse.status}`
-          );
+          dispatch(addListings(listingsData));
+          setListings(listingsData);
+        } else {
+          setListings(filteredListings);
         }
-        const listingsData = await listingsResponse.json();
-        setListings(listingsData);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -63,7 +92,7 @@ export default function Home() {
     };
 
     fetchData();
-  }, [selectedCategoryId]);
+  }, [selectedCategoryId, cachedCategories, cachedListings, dispatch]);
 
   // Handle category selection
   const handleCategoryChange = (e) => {

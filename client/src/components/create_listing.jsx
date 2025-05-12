@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+// import { addListings } from "../store/listingsSlice";
+import { addCategories } from "../store/categoriesSlice";
+import { addMyListings } from "../store/myListingsSlice";
 
 /**
  * CreateListings modal component for creating a new item listing.
@@ -25,38 +28,39 @@ export default function CreateListings({ isOpen, onClose }) {
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth.token);
+  const cachedCategories = useSelector((state) => state.categories.byId);
+  const dispatch = useDispatch();
 
   // Fetch categories when modal opens
   useEffect(() => {
     if (isOpen) {
       const fetchCategories = async () => {
         try {
-          const response = await fetch("http://localhost:5000/api/categories", {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-          if (!response.ok) {
-            throw new Error("Failed to fetch categories");
+          if (Object.values(cachedCategories).length === 0) {
+            const response = await fetch(
+              "http://localhost:5000/api/categories",
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              }
+            );
+            if (!response.ok) {
+              throw new Error("Failed to fetch categories");
+            }
+            const data = await response.json();
+            dispatch(addCategories(data));
+            setCategories(data);
+          } else {
+            setCategories(Object.values(cachedCategories));
           }
-          const data = await response.json();
-          setCategories(data);
         } catch (err) {
           setError(err.message);
         }
       };
       fetchCategories();
     }
-  }, [isOpen]);
-
-  // Handle input changes
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  }, [isOpen, cachedCategories, dispatch]);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -87,6 +91,7 @@ export default function CreateListings({ isOpen, onClose }) {
         throw new Error(data.msg || "Failed to create listing");
       }
 
+      dispatch(addMyListings([data]));
       onClose();
       navigate(`/listings/${data.id}`);
     } catch (err) {
@@ -94,6 +99,15 @@ export default function CreateListings({ isOpen, onClose }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle input changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
 
   // Don't render if modal is not open

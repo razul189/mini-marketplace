@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { addCategories } from "../store/categoriesSlice";
 
 /**
  * CreateCategory modal component for creating a new category.
@@ -56,6 +57,8 @@ export default function CreateCategory({ isOpen, onClose }) {
         throw new Error(errorData.msg || "Failed to create category");
       }
 
+      const newCategory = await response.json();
+      dispatch(addCategories([newCategory]));
       onClose();
       setCategoryName("");
     } catch (err) {

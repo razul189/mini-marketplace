@@ -2,6 +2,10 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../store/authSlice";
+import { clearCategory } from "../store/categoriesSlice";
+import { clearListing } from "../store/listingsSlice";
+import { clearFavorite } from "../store/favoritesSlice";
+import { clearMyListing } from "../store/myListingsSlice";
 
 /**
  * Navbar component for site navigation.
@@ -20,6 +24,11 @@ export default function Navbar() {
   // Handle logout
   const handleLogout = () => {
     dispatch(logout());
+    // clear State
+    dispatch(clearCategory());
+    dispatch(clearListing());
+    dispatch(clearFavorite());
+    dispatch(clearMyListing());
     navigate("/login");
   };
 
@@ -75,7 +84,7 @@ export default function Navbar() {
               fontSize: "0.9rem",
             }}
           >
-            My Listings
+            Listings
           </Link>
           <Link
             to="/my-categories"

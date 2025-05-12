@@ -4,6 +4,13 @@ import { Link, useNavigate } from "react-router-dom";
 import CreateListings from "./create_listing";
 import CreateCategory from "./create_category";
 import Navbar from "./navbar";
+import { addFavorites, removeFavorite } from "../store/favoritesSlice";
+import {
+  addMyListings,
+  updateMyListing,
+  removeMyListing,
+} from "../store/myListingsSlice";
+import { removeListing, updateListing } from "../store/listingsSlice";
 
 /**
  * Dashboard component that displays user profile, listings, and favorites.
@@ -25,6 +32,9 @@ export default function Dashboard() {
 
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  const cachedUser = useSelector((state) => state.auth.user);
+  const cachedMyListings = useSelector((state) => state.myListings.byId);
+  const cachedFavorites = useSelector((state) => state.favorites.byId);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -50,48 +60,61 @@ export default function Dashboard() {
         setIsLoading(true);
 
         // Fetch user
-        const userResponse = await fetch("http://localhost:5000/api/me", {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (userResponse.status === 401 || userResponse.status === 422) {
-          dispatch({ type: "CLEAR_AUTH" });
-          navigate("/login");
-          return;
-        }
-        if (!userResponse.ok) {
-          throw new Error("Failed to fetch user data");
-        }
-        const userData = await userResponse.json();
-        setUser(userData);
-
-        // Fetch listings
-        const listingsResponse = await fetch(
-          "http://localhost:5000/api/me/listings",
-          {
+        let currentUser = cachedUser;
+        if (!cachedUser) {
+          const userResponse = await fetch("http://localhost:5000/api/me", {
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+          });
+          if (userResponse.status === 401 || userResponse.status === 422) {
+            dispatch({ type: "CLEAR_AUTH" });
+            navigate("/login");
+            return;
           }
-        );
-        if (
-          listingsResponse.status === 401 ||
-          listingsResponse.status === 422
-        ) {
-          dispatch({ type: "CLEAR_AUTH" });
-          navigate("/login");
-          return;
+          if (!userResponse.ok) {
+            throw new Error("Failed to fetch user data");
+          }
+          currentUser = await userResponse.json();
+          dispatch({ type: "SET_USER", payload: currentUser });
+          setUser(currentUser);
+        } else {
+          setUser(cachedUser);
         }
-        if (!listingsResponse.ok) {
-          throw new Error("Failed to fetch listings");
-        }
-        const listingsData = await listingsResponse.json();
-        setListings(listingsData);
 
-        // Fetch favorites
+        // Fetch listings
+        if (Object.values(cachedMyListings).length === 0) {
+          const listingsResponse = await fetch(
+            "http://localhost:5000/api/me/listings",
+            {
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          if (
+            listingsResponse.status === 401 ||
+            listingsResponse.status === 422
+          ) {
+            dispatch({ type: "CLEAR_AUTH" });
+            navigate("/login");
+            return;
+          }
+          if (!listingsResponse.ok) {
+            throw new Error("Failed to fetch listings");
+          }
+          const listingsData = await listingsResponse.json();
+          console.log("listingsData:", listingsData);
+
+          dispatch(addMyListings(listingsData));
+          setListings(listingsData);
+        } else {
+          setListings(Object.values(cachedMyListings));
+        }
+
+        // Always fetch favorites to ensure cache is up-to-date
         const favoritesResponse = await fetch(
           "http://localhost:5000/api/favorites",
           {
@@ -113,6 +136,7 @@ export default function Dashboard() {
           throw new Error("Failed to fetch favorites");
         }
         const favoritesData = await favoritesResponse.json();
+        dispatch(addFavorites(favoritesData));
         setFavorites(favoritesData);
       } catch (err) {
         setError(err.message);
@@ -122,7 +146,14 @@ export default function Dashboard() {
     };
 
     fetchData();
-  }, [isAuthenticated, token, navigate, dispatch]);
+  }, [
+    isAuthenticated,
+    token,
+    cachedUser,
+    cachedMyListings,
+    navigate,
+    dispatch,
+  ]);
 
   // Handle favorite deletion
   const handleDeleteFavorite = async (favoriteId) => {
@@ -142,9 +173,16 @@ export default function Dashboard() {
         navigate("/login");
         return;
       }
+      // If favorite doesn't exist (e.g., already deleted), remove from cache
+      if (response.status === 404) {
+        dispatch(removeFavorite(favoriteId));
+        setFavorites(favorites.filter((fav) => fav.id !== favoriteId));
+        return;
+      }
       if (!response.ok) {
         throw new Error("Failed to delete favorite");
       }
+      dispatch(removeFavorite(favoriteId));
       setFavorites(favorites.filter((fav) => fav.id !== favoriteId));
     } catch (err) {
       setError(err.message);
@@ -177,11 +215,20 @@ export default function Dashboard() {
         navigate("/login");
         return;
       }
+      if (response.status === 404) {
+        // Favorite no longer exists, remove from cache
+        dispatch(removeFavorite(editFavorite.id));
+        setFavorites(favorites.filter((fav) => fav.id !== editFavorite.id));
+        setIsEditNoteModalOpen(false);
+        setEditFavorite(null);
+        return;
+      }
       if (!response.ok) {
         throw new Error("Failed to update note");
       }
 
       const updatedFavorite = await response.json();
+      dispatch(addFavorites([updatedFavorite]));
       setFavorites((prevFavorites) =>
         prevFavorites.map((fav) =>
           fav.id === updatedFavorite.id ? updatedFavorite : fav
@@ -194,8 +241,62 @@ export default function Dashboard() {
     }
   };
 
+  // Handle delete listing
   const handleDeleteListing = async (listingId) => {
     try {
+      // Fetch favorites associated with the listing
+      const favoritesResponse = await fetch(
+        `http://localhost:5000/api/favorites?item_listing_id=${listingId}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (
+        favoritesResponse.status === 401 ||
+        favoritesResponse.status === 422
+      ) {
+        dispatch({ type: "CLEAR_AUTH" });
+        navigate("/login");
+        return;
+      }
+      if (!favoritesResponse.ok) {
+        throw new Error("Failed to fetch favorites for listing");
+      }
+      const listingFavorites = await favoritesResponse.json();
+
+      // Delete each associated favorite
+      for (const favorite of listingFavorites) {
+        const deleteFavoriteResponse = await fetch(
+          `http://localhost:5000/api/favorites/${favorite.id}`,
+          {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+        if (
+          deleteFavoriteResponse.status === 401 ||
+          deleteFavoriteResponse.status === 422
+        ) {
+          dispatch({ type: "CLEAR_AUTH" });
+          navigate("/login");
+          return;
+        }
+        if (
+          !deleteFavoriteResponse.ok &&
+          deleteFavoriteResponse.status !== 404
+        ) {
+          throw new Error(`Failed to delete favorite ${favorite.id}`);
+        }
+        dispatch(removeFavorite(favorite.id));
+      }
+
+      // Delete the listing
       const response = await fetch(
         `http://localhost:5000/api/listings/${listingId}`,
         {
@@ -211,22 +312,13 @@ export default function Dashboard() {
         return;
       }
       if (response.ok) {
+        dispatch(removeMyListing(listingId));
+        dispatch(removeListing(listingId));
         setListings(listings.filter((listing) => listing.id !== listingId));
-        const favoritesResponse = await fetch(
-          "http://localhost:5000/api/favorites",
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
+        // Update local favorites state to remove deleted favorites
+        setFavorites(
+          favorites.filter((fav) => fav.item_listing_id !== listingId)
         );
-        if (favoritesResponse.ok) {
-          const updatedFavorites = await favoritesResponse.json();
-          setFavorites(updatedFavorites);
-        } else {
-          throw new Error("Failed to fetch updated favorites");
-        }
       } else if (response.status === 403) {
         alert("You are not authorized to delete this listing.");
       } else {
@@ -237,6 +329,7 @@ export default function Dashboard() {
     }
   };
 
+  // Handle update listing
   const handleUpdateListing = async () => {
     try {
       const response = await fetch(
@@ -258,6 +351,8 @@ export default function Dashboard() {
       );
       if (response.ok) {
         const updatedListing = await response.json();
+        dispatch(updateMyListing(updatedListing));
+        dispatch(updateListing(updatedListing));
         setListings((prevListings) =>
           prevListings.map((l) =>
             l.id === updatedListing.id ? updatedListing : l

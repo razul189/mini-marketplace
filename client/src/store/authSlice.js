@@ -18,6 +18,10 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       localStorage.removeItem("token");
+      localStorage.removeItem("categories");
+      localStorage.removeItem("listings");
+      localStorage.removeItem("favorites");
+      localStorage.removeItem("myListings");
     },
   },
 });
