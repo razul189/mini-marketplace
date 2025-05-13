@@ -1,14 +1,14 @@
 import { createSlice } from "@reduxjs/toolkit";
 
 const listingsFromStorage = {
-  byId: {},
-  allIds: [],
+  byId: {}, // 
+  allIds: [], // all info
 };
 
 const listingsSlice = createSlice({
   name: "listings",
   initialState: listingsFromStorage,
-  reducers: {
+  reducers: { // actions
     addListings: (state, action) => {
       action.payload.forEach((listing) => {
         state.byId[listing.id] = listing;
@@ -20,7 +20,7 @@ const listingsSlice = createSlice({
     updateListing: (state, action) => {
       const { id, ...updates } = action.payload;
       state.byId[id] = { ...state.byId[id], ...updates };
-      //localStorage.setItem("myListings", JSON.stringify(state)); // Save to localStorage
+      
     },
     removeListing: (state, action) => {
       const id = action.payload;

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-// import { addListings } from "../store/listingsSlice";
 import { addCategories } from "../store/categoriesSlice";
 import { addMyListings } from "../store/myListingsSlice";
 
@@ -27,7 +26,7 @@ export default function CreateListings({ isOpen, onClose }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
-  const token = useSelector((state) => state.auth.token);
+  const token = useSelector((state) => state.auth.token); // fetch from redux store
   const cachedCategories = useSelector((state) => state.categories.byId);
   const dispatch = useDispatch();
 
