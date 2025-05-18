@@ -2,11 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logout } from "../store/authSlice";
-import { clearCategory } from "../store/categoriesSlice";
-import { clearListing } from "../store/listingsSlice";
-import { clearFavorite } from "../store/favoritesSlice";
-import { clearMyListing } from "../store/myListingsSlice";
-
 
 export default function Navbar() {
   // Redux auth state
@@ -14,15 +9,9 @@ export default function Navbar() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-
   // Handle logout
   const handleLogout = () => {
     dispatch(logout());
-    // clear State
-    dispatch(clearCategory()); 
-    dispatch(clearListing());
-    dispatch(clearFavorite());
-    dispatch(clearMyListing());
     navigate("/login");
   };
 
@@ -56,7 +45,7 @@ export default function Navbar() {
         >
           Mini Marketplace
         </Link>
-  
+
         {/* Desktop Menu */}
         <div
           style={{
@@ -65,7 +54,7 @@ export default function Navbar() {
             alignItems: "center",
           }}
         >
-          <Link
+          {/* <Link
             to="/listings"
             style={{
               color: "#333",
@@ -74,6 +63,16 @@ export default function Navbar() {
             }}
           >
             Listings
+          </Link> */}
+          <Link
+            to="/all-categories"
+            style={{
+              color: "#333",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+            }}
+          >
+            All Categories
           </Link>
           <Link
             to="/my-categories"
@@ -138,4 +137,4 @@ export default function Navbar() {
       </div>
     </nav>
   );
-}  
+}

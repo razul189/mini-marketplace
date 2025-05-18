@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
-import { fetchCategories } from "../store/categoriesSlice";
-import { addMyListings } from "../store/myListingsSlice";
-import { fetchUser } from "../store/authSlice";
 
 /**
  * Listings component that fetches and displays the authenticated user's listings.
@@ -12,7 +9,7 @@ import { fetchUser } from "../store/authSlice";
  */
 export default function Listings() {
   // State for listings, categories, loading, and errors
-  const [listings, setListings] = useState([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -23,16 +20,10 @@ export default function Listings() {
 
   // Categories from Redux
   const cachedCategories = categoriesState.categories;
-  const cachedUser = useSelector((state) => state.auth.user);
 
-  // const cachedCategories = useSelector((state) => state.categories.byId);
-  const cachedMyListings = useSelector((state) => state.myListings.byId);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Handle URL query parameters
-  const [searchParams, setSearchParams] = useSearchParams();
-  // const selectedCategoryId = searchParams.get("category_id") || "";
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [selectedCategoryListings, setSelectedCategoryListings] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -47,78 +38,8 @@ export default function Listings() {
       }
 
       try {
-        setIsLoading(true);
-
-        if (!cachedUser) {
-          const resultAction = await dispatch(fetchUser());
-          if (fetchUser.rejected.match(resultAction)) {
-            dispatch(logout());
-            navigate("/login");
-            return;
-          }
-
-          const userData = resultAction.payload;
-
-          console.log("user Listings:", userData?.listings?.length);
-
-          // Extract and dispatch listings and favorites from userData
-          // if (userData?.listings?.length) {
-          //  dispatch(addMyListings(userData.listings));
-          // }
-        }
-
-        // Fetch categories if they're not already cached
-        if (cachedCategories.length === 0) {
-          const categoriesResult = await dispatch(fetchCategories());
-          console.log("categoriesResult", categoriesResult);
-
-          if (fetchCategories.rejected.match(categoriesResult)) {
-            throw new Error(
-              categoriesResult.payload || "Failed to load categories"
-            );
-          }
-        } else {
-          setSelectedCategoryListings(categoriesState.listings);
-        }
-
-        // Use the cached categories or set them from Redux store
-        //const categories = Object.values(cachedCategories);
-
-        // Fetch user's listings (with optional category filter)
-        // const filteredListings = selectedCategoryId
-        //   ? Object.values(cachedMyListings).filter(
-        //       (listing) => listing.category_id === parseInt(selectedCategoryId)
-        //     )
-        //   : Object.values(cachedMyListings);
-
-        /*
-        if (filteredListings.length === 0) {
-          const listingsUrl = selectedCategoryId
-            ? `http://localhost:5000/api/me/listings?category_id=${selectedCategoryId}`
-            : "http://localhost:5000/api/me/listings";
-          const listingsResponse = await fetch(listingsUrl, {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (listingsResponse.status === 401) {
-            dispatch({ type: "CLEAR_AUTH" });
-            navigate("/login");
-            return;
-          }
-          if (!listingsResponse.ok) {
-            throw new Error(
-              `Failed to fetch listings: ${listingsResponse.status}`
-            );
-          }
-          const listingsData = await listingsResponse.json();
-          dispatch(addMyListings(listingsData));
-          setListings(listingsData);
-        } else {
-          setListings(filteredListings);
-        }
-          */
+        // setIsLoading(true);
+        setSelectedCategoryListings(categoriesState.listings);
       } catch (err) {
         setError(err.message);
       } finally {

@@ -1,22 +1,17 @@
 import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useParams, useNavigate } from "react-router-dom";
-import { fetchUser, logout } from "../store/authSlice";
-import { fetchCategories } from "../store/categoriesSlice";
 import Navbar from "./navbar";
 
 export default function CategoryListings() {
   const { id } = useParams();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  // const category = useSelector((state) => state.categories.byId[id]);
-  // const status = useSelector((state) => state.categories.status);
-  // const error = useSelector((state) => state.categories.error);
 
   const cachedUser = useSelector((state) => state.auth.user);
   const cachedCategories = useSelector((state) => state.categories.categories);
@@ -30,65 +25,7 @@ export default function CategoryListings() {
       navigate("/login");
       return;
     }
-
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-
-        if (!cachedUser) {
-          const resultAction = await dispatch(fetchUser());
-          if (fetchUser.rejected.match(resultAction)) {
-            dispatch(logout());
-            navigate("/login");
-            return;
-          }
-
-          //  const userData = resultAction.payload;
-
-          //console.log("user Listings:", userData?.listings?.length);
-
-          // Extract and dispatch listings and favorites from userData
-          //if (userData?.listings?.length) {
-          // dispatch(addMyListings(userData.listings));
-          // setListings(userData.listings);
-          //}
-        } else {
-          // If user is already cached, use cached listings and favorites
-          // setListings(Object.values(cachedMyListings));
-        }
-
-        // Fetch Listings if not present
-        if (cachedCategories.length === 0) {
-          const categoriesResult = await dispatch(fetchCategories());
-          console.log("categoriesResult", categoriesResult);
-
-          if (fetchCategories.rejected.match(categoriesResult)) {
-            throw new Error(
-              categoriesResult.payload || "Failed to load categories"
-            );
-          }
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, [id, isAuthenticated, dispatch]);
-
-  if (isLoading) {
-    return (
-      <div
-        style={{ minWidth: "100%", backgroundColor: "#fff", padding: "1rem" }}
-      >
-        <Navbar />
-        <h1 style={{ fontSize: "1.5rem", color: "#333" }}>
-          Loading listings...
-        </h1>
-      </div>
-    );
-  }
+  }, [dispatch]);
 
   if (error) {
     return (
@@ -108,8 +45,7 @@ export default function CategoryListings() {
     );
   }
 
-  //  const listings = category?.listings || [];
-
+ 
   return (
     <div style={{ minWidth: "100%", backgroundColor: "#fff" }}>
       <Navbar />

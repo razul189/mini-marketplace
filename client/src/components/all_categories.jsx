@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useSelector, useDispatch } from "react-redux";
+import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
+import CreateCategory from "./create_category";
 
-export default function MyCategories() {
-  const dispatch = useDispatch();
+export default function AllCategories() {
   const navigate = useNavigate();
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
 
   const {
     token,
@@ -14,10 +15,8 @@ export default function MyCategories() {
     error: authError,
   } = useSelector((state) => state.auth);
 
-  const cachedMyCategories = useSelector((state) => state.auth.myCategories);
-
-  const [isLoading, setIsLoading] = useState(false);
-  console.log("cachedMyCategories", cachedMyCategories);
+  // const cachedMyCategories = useSelector((state) => state.auth.myCategories);
+  const cachedCategories = useSelector((state) => state.categories.categories);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -25,50 +24,10 @@ export default function MyCategories() {
         navigate("/login");
         return;
       }
-
-      /*
-      setIsLoading(true);
-      if (!cachedUser) {
-        const resultAction = await dispatch(fetchUser());
-
-        if (fetchUser.rejected.match(resultAction)) {
-          dispatch(logout());
-          navigate("/login");
-          return;
-        }
-      }
-        */
-      /*
-      if (cachedCategories.length === 0) {
-        const categoriesResult = await dispatch(fetchCategories());
-        console.log("categoriesResult", categoriesResult);
-
-        if (fetchCategories.rejected.match(categoriesResult)) {
-          throw new Error(
-            categoriesResult.payload || "Failed to load categories"
-          );
-        }
-      }
-
-      setIsLoading(false);
-      */
     };
 
     loadUserData();
   }, []);
-
-  if (isLoading) {
-    return (
-      <div
-        style={{ minWidth: "100%", backgroundColor: "#fff", padding: "1rem" }}
-      >
-        <Navbar />
-        <h1 style={{ fontSize: "1.5rem", color: "#333" }}>
-          Loading your categories...
-        </h1>
-      </div>
-    );
-  }
 
   if (authError) {
     return (
@@ -90,16 +49,30 @@ export default function MyCategories() {
       <Navbar />
       <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "1rem" }}>
         <h1 style={{ fontSize: "1.5rem", fontWeight: "600", color: "#333" }}>
-          My Categories
+          All Categories
         </h1>
+        <button
+          onClick={() => setIsCategoryModalOpen(true)}
+          style={{
+            padding: "0.5rem",
+            backgroundColor: "#1976d2",
+            color: "#fff",
+            border: "none",
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            marginBottom: "0.5rem",
+          }}
+        >
+          Create New Category
+        </button>
         <section>
-          {cachedMyCategories.length === 0 ? (
+          {cachedCategories.length === 0 ? (
             <p style={{ fontSize: "0.9rem", color: "#333" }}>
               You have no categories with listings.
             </p>
           ) : (
             <ul style={{ listStyle: "none", padding: 0 }}>
-              {cachedMyCategories.map((category) => (
+              {cachedCategories.map((category) => (
                 <li
                   key={category.id}
                   style={{
@@ -107,16 +80,7 @@ export default function MyCategories() {
                     borderBottom: "1px solid #e0e0e0",
                   }}
                 >
-                  <Link
-                    to={`/category-listings/${category.id}`}
-                    style={{ fontSize: "1.1rem", color: "#1976d2" }}
-                  >
-                    {category.name}
-                  </Link>
-                  <p style={{ fontSize: "0.9rem", color: "#555" }}>
-                    {category.listings.length} listing
-                    {category.listings.length !== 1 ? "s" : ""}
-                  </p>
+                  <p>{category.name}</p>
                 </li>
               ))}
             </ul>
@@ -134,6 +98,11 @@ export default function MyCategories() {
           View All My Listings
         </Link> */}
       </main>
+
+      <CreateCategory
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+      />
     </div>
   );
 }

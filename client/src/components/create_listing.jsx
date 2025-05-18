@@ -27,7 +27,6 @@ export default function CreateListings({ isOpen, onClose }) {
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth.token); // fetch from redux store
   const cachedCategories = useSelector((state) => state.categories.categories);
-  //const categories = useSelector((state) => state.categories.allIds.map(id => state.categories.byId[id]));
   const categoriesStatus = useSelector((state) => state.categories.status);
   const dispatch = useDispatch();
 
@@ -258,6 +257,7 @@ export default function CreateListings({ isOpen, onClose }) {
               ))}
             </select>
           </div>
+          <p> Can't find your category? Add one from the All categories page</p>
           {error && (
             <p
               style={{

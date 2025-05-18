@@ -204,6 +204,7 @@ const authSlice = createSlice({
     myListings: [],
     myCategories: [],
     myFavorites: [],
+    status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
   },
   reducers: {
     loginSuccess: (state, action) => {
@@ -215,6 +216,10 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.user = null;
+      state.myListings = [];
+      state.myCategories = [];
+      state.myFavorites = [];
+      // Clear the token from local storage
       localStorage.removeItem("token");
     },
     addToMyListings: (state, action) => {
@@ -258,6 +263,7 @@ const authSlice = createSlice({
       .addCase(fetchUser.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.status = "pending";
       })
       .addCase(fetchUser.fulfilled, (state, action) => {
         state.loading = false;
@@ -267,10 +273,12 @@ const authSlice = createSlice({
           (category) => category.listings
         );
         state.myFavorites = action.payload.favorites;
+        state.status = "fulfilled";
       })
       .addCase(fetchUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.status = "rejected";
       })
       .addCase(deleteMyListing.pending, (state) => {
         state.loading = true;

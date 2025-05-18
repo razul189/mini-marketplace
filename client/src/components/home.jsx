@@ -1,16 +1,12 @@
 import Navbar from "./navbar";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { fetchListings } from "../store/listingsSlice";
-import { fetchCategories } from "../store/categoriesSlice";
+import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 
 export default function Home() {
-  const [listings, setListings] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
 
@@ -21,68 +17,8 @@ export default function Home() {
   const cachedCategories = categoriesState.categories;
   const [selectedCategoryListings, setSelectedCategoryListings] = useState([]);
 
-  //const cachedListings = listingsState.byId;
-
-  console.log("selectedCategoryListings", selectedCategoryListings);
-
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Fetch categories if not already loaded
-        if (cachedCategories.length === 0) {
-          const categoriesResult = await dispatch(fetchCategories());
-          console.log("categoriesResult", categoriesResult);
-
-          if (fetchCategories.rejected.match(categoriesResult)) {
-            throw new Error(
-              categoriesResult.payload || "Failed to load categories"
-            );
-          }
-        } else {
-          setSelectedCategoryListings(categoriesState.listings);
-        }
-
-        // Fetch listings if not already cached for this category
-        // const filteredListings = selectedCategoryId
-        //   ? Object.values(cachedListings).filter(
-        //       (listing) => listing.category_id === parseInt(selectedCategoryId)
-        //     )
-        //   : Object.values(cachedListings);
-        // console.log("cachedCategoriesss - ", cachedCategories);
-
-        /*  const filteredListings = selectedCategoryId 
-          ? cachedCategories[selectedCategoryId].listings
-          : Object.values(cachedListings);
-          */
-        //console.log("filtered - ", filteredListings);
-        // console.log("filtered2 - ", filteredListings1);
-        /*
-        if (filteredListings.length === 0) {
-          const listingsResult = await dispatch(
-            fetchListings(selectedCategoryId)
-          );
-          if (fetchListings.rejected.match(listingsResult)) {
-            throw new Error(
-              listingsResult.payload || "Failed to load listings"
-            );
-          }
-
-          setListings(listingsResult.payload);
-        } else {
-          setListings(filteredListings);
-        }
-        */
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
+    setSelectedCategoryListings(categoriesState.listings);
   }, [dispatch, cachedCategories]);
 
   const handleCategoryChange = (e) => {
@@ -103,10 +39,6 @@ export default function Home() {
       setSelectedCategoryId("");
     }
   };
-
-  // -----------------------
-  // UI Rendering (unchanged)
-  // -----------------------
 
   if (isLoading) {
     return (

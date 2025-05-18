@@ -2,61 +2,38 @@ import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import CreateListings from "./create_listing";
-import CreateCategory from "./create_category";
+
 import Navbar from "./navbar";
-import { addFavorites, removeFavorite } from "../store/favoritesSlice";
-import {
-  fetchCategories,
-  deleteListing,
-  updateListing,
-} from "../store/categoriesSlice";
+import { deleteListing, updateListing } from "../store/categoriesSlice";
 import {
   logout,
   deleteMyListing,
   updateMyListing,
   toggleFavorite,
 } from "../store/authSlice";
-import { fetchUser, updateFavoriteNote } from "../store/authSlice";
-// import { toggleFavorite } from "../store/favoritesSlice";
-import {
-  deleteListingWithFavorites,
-  // updateListingThunk,
-} from "../store/myListingsSlice";
+import { updateFavoriteNote } from "../store/authSlice";
 
 /**
  * Dashboard component that displays user profile, listings, and favorites.
  * Requires authentication and handles data fetching, favorite deletion, note editing, and category/listing creation.
  */
 export default function Dashboard() {
-  // State for user data, listings, favorites, loading, error, and modals
-  // const [user, setUser] = useState(null);
-
-  // const categoriesState = useSelector((state) => state.categories);
-  // console.log("categoriesState", categoriesState);
-
-  // const cachedCategories = categoriesState.categories;
-
-  const [listings, setListings] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isListingModalOpen, setIsListingModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editListing, setEditListing] = useState(null);
   const [isEditNoteModalOpen, setIsEditNoteModalOpen] = useState(false);
   const [editFavorite, setEditFavorite] = useState(null);
-  const favorites = useSelector((state) => Object.values(state.favorites.byId));
 
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   // console.log("isAuthenticated", isAuthenticated);
 
   const cachedUser = useSelector((state) => state.auth.user);
-  const cachedCategories = useSelector((state) => state.categories.categories);
   const cachedMyListings = useSelector((state) => state.auth.myListings);
-  console.log("cachedMyListings - dashboard", cachedMyListings);
-
   const cachedMyFavorites = useSelector((state) => state.auth.myFavorites);
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -76,51 +53,6 @@ export default function Dashboard() {
       navigate("/login");
       return;
     }
-
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-
-        if (!cachedUser) {
-          const resultAction = await dispatch(fetchUser());
-          if (fetchUser.rejected.match(resultAction)) {
-            dispatch(logout());
-            navigate("/login");
-            return;
-          }
-
-          const userData = resultAction.payload;
-
-          //console.log("user Listings:", userData?.listings?.length);
-
-          // Extract and dispatch listings and favorites from userData
-          //if (userData?.listings?.length) {
-          // dispatch(addMyListings(userData.listings));
-          // setListings(userData.listings);
-          //}
-        } else {
-          // If user is already cached, use cached listings and favorites
-          // setListings(Object.values(cachedMyListings));
-        }
-
-        // Fetch Listings if not present
-        if (cachedCategories.length === 0) {
-          const categoriesResult = await dispatch(fetchCategories());
-          console.log("categoriesResult", categoriesResult);
-
-          if (fetchCategories.rejected.match(categoriesResult)) {
-            throw new Error(
-              categoriesResult.payload || "Failed to load categories"
-            );
-          }
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
   }, []);
 
   // Handle favorite deletion
@@ -166,7 +98,7 @@ export default function Dashboard() {
           return;
         }
         if (error === "Not Found") {
-          dispatch(removeFavorite(editFavorite.id));
+          // dispatch(removeFavorite(editFavorite.id));
           setIsEditNoteModalOpen(false);
           setEditFavorite(null);
           return;
@@ -190,7 +122,7 @@ export default function Dashboard() {
         deleteMyListing({ listingId, token })
       );
 
-      if (deleteListingWithFavorites.rejected.match(resultAction)) {
+      if (deleteMyListing.rejected.match(resultAction)) {
         const error = resultAction.payload;
         if (error === "Unauthorized") {
           dispatch(logout());
@@ -399,21 +331,6 @@ export default function Dashboard() {
               </p>
             </section>
 
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              style={{
-                padding: "0.5rem",
-                backgroundColor: "#1976d2",
-                color: "#fff",
-                border: "none",
-                fontSize: "0.9rem",
-                cursor: "pointer",
-                marginBottom: "0.5rem",
-              }}
-            >
-              Create New Category
-            </button>
-
             <br />
 
             <button
@@ -430,7 +347,6 @@ export default function Dashboard() {
             >
               Create New Listing
             </button>
-
             <section
               style={{
                 marginBottom: "1rem",
@@ -869,10 +785,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      <CreateCategory
-        isOpen={isCategoryModalOpen}
-        onClose={() => setIsCategoryModalOpen(false)}
-      />
+
       <CreateListings
         isOpen={isListingModalOpen}
         onClose={() => setIsListingModalOpen(false)}

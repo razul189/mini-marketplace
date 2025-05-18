@@ -16,6 +16,7 @@ export const fetchCategories = createAsyncThunk(
       }
 
       const data = await response.json();
+
       return data;
     } catch (error) {
       return rejectWithValue(error.message);
@@ -114,8 +115,8 @@ export const createListing = createAsyncThunk(
 const initialState = {
   categories: [],
   listings: [],
-  byId: {},
-  allIds: [],
+  // byId: {},
+  // allIds: [],
   status: "idle", // 'idle' | 'loading' | 'succeeded' | 'failed'
   error: null,
   selectedCategory: null,
@@ -129,16 +130,16 @@ const categoriesSlice = createSlice({
     addCategories: (state, action) => {
       state.categories = action.payload;
       state.listings = action.payload.flatMap((category) => category.listings);
-      action.payload.forEach((category) => {
-        state.byId[category.id] = category;
-        if (!state.allIds.includes(category.id)) {
-          state.allIds.push(category.id);
-        }
-      });
+      // action.payload.forEach((category) => {
+      //   state.byId[category.id] = category;
+      //   if (!state.allIds.includes(category.id)) {
+      //     state.allIds.push(category.id);
+      //   }
+      // });
     },
     removeCategory: (state, action) => {
       const id = action.payload;
-      delete state.byId[id];
+      // delete state.byId[id];
       state.allIds = state.allIds.filter((catId) => catId !== id);
       state.categories = state.categories.filter((cat) => cat.id !== id);
     },
@@ -146,6 +147,7 @@ const categoriesSlice = createSlice({
       state.byId = {};
       state.allIds = [];
       state.categories = [];
+      state.listings = [];
     },
 
     selectCategory: (state, action) => {
@@ -185,15 +187,16 @@ const categoriesSlice = createSlice({
       .addCase(fetchCategories.fulfilled, (state, action) => {
         state.status = "succeeded";
         state.categories = action.payload;
+
         state.listings = action.payload.flatMap(
           (category) => category.listings
         );
-        action.payload.forEach((category) => {
-          state.byId[category.id] = category;
-          if (!state.allIds.includes(category.id)) {
-            state.allIds.push(category.id);
-          }
-        });
+        // action.payload.forEach((category) => {
+        //   state.byId[category.id] = category;
+        //   if (!state.allIds.includes(category.id)) {
+        //     state.allIds.push(category.id);
+        //   }
+        // });
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.status = "failed";

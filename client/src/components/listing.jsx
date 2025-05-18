@@ -3,11 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 
 import Navbar from "./navbar";
-import { fetchCategories } from "../store/categoriesSlice";
-import { fetchUser, toggleFavorite, logout } from "../store/authSlice";
-
-import { fetchListingById } from "../store/listingsSlice";
-// import { toggleFavorite, fetchFavoriteStatus } from "../store/favoritesSlice";
+import { toggleFavorite } from "../store/authSlice";
 
 export default function Listing() {
   const { id } = useParams();
@@ -37,80 +33,7 @@ export default function Listing() {
   console.log("isFavorited", isFavorited);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        if (!cachedUser) {
-          const resultAction = await dispatch(fetchUser());
-          console.log("resultAction", resultAction);
-          if (resultAction?.error?.message === "Rejected") {
-            console.log("fetchUser.error.message");
-
-            dispatch(logout());
-            navigate("/login");
-            return;
-          }
-
-          // if (fetchUser.rejected.match(resultAction)) {
-          //   dispatch(logout());
-          //   navigate("/login");
-          //   return;
-          // }
-
-          const userData = resultAction.payload;
-
-          console.log("user Listings:", userData?.listings?.length);
-
-          // Extract and dispatch listings and favorites from userData
-          if (userData?.listings?.length) {
-            dispatch(addMyListings(userData.listings));
-            // setListings(userData.listings);
-          }
-        }
-
-        // Fetch categories if not already loaded
-        if (cachedCategories.length === 0) {
-          const categoriesResult = await dispatch(fetchCategories());
-          console.log("loadData");
-          console.log("categoriesResult", categoriesResult);
-
-          if (fetchCategories.rejected.match(categoriesResult)) {
-            throw new Error(
-              categoriesResult.payload || "Failed to load categories"
-            );
-          }
-        }
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadData();
-  }, [dispatch, cachedCategories]);
-
-  // useEffect(() => {
-  //   // for favorites
-  //   console.log("Favorite:", !!favorite);
-
-  //   setIsFavorited(!!favorite ? true : false);
-  //   setNote(favorite?.note || "");
-  // }, [cachedMyFavorites, id]);
-
-  // Fetch listing and favorite status when component mounts
-  //useEffect(() => {
-  // dispatch(fetchListingById({ id }));
-
-  useEffect(() => {
     if (cachedUser) {
-      // const favorite = cachedUser.favorites.find(
-      //   (favorite) => favorite.listing_id === parseInt(id)
-      // );
-      console.log("favorite", favorite);
-
       setIsFavorited(!!favorite);
       setNote(favorite?.note || "");
     }

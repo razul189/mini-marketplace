@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useNavigate } from "react-router-dom";
 import { createCategory } from "../store/categoriesSlice";
-import { addToMyCategories } from "../store/authSlice";
 
 /**
  * CreateCategory modal component for creating a new category.
@@ -18,7 +16,6 @@ export default function CreateCategory({ isOpen, onClose }) {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const navigate = useNavigate();
   const token = useSelector((state) => state.auth.token);
   const dispatch = useDispatch();
 
@@ -51,7 +48,7 @@ export default function CreateCategory({ isOpen, onClose }) {
       }
 
       // Successfully created category, close the modal and reset form
-      dispatch(addToMyCategories(actionResult));
+      // dispatch(addToMyCategories(actionResult));
       onClose();
       setCategoryName("");
       setIsLoading(false);
