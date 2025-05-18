@@ -16,8 +16,6 @@ import Signup from "./components/signup.jsx";
 import MyCategories from "./components/my_categories.jsx";
 import CategoryListings from "./components/category_listings.jsx";
 
-
-
 const router = createBrowserRouter([
   {
     path: "/",
@@ -54,9 +52,7 @@ const router = createBrowserRouter([
 ]);
 
 createRoot(document.getElementById("root")).render(
-  <StrictMode>
-    <Provider store={store}>
-      <RouterProvider router={router} />
-    </Provider>
-  </StrictMode>
+  <Provider store={store}>
+    <RouterProvider router={router} />
+  </Provider>
 );

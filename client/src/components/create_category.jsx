@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { addCategories } from "../store/categoriesSlice";
+import { createCategory } from "../store/categoriesSlice";
+import { addToMyCategories } from "../store/authSlice";
 
 /**
  * CreateCategory modal component for creating a new category.
@@ -37,33 +38,25 @@ export default function CreateCategory({ isOpen, onClose }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/categories", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: categoryName.trim() }),
-      });
+      const actionResult = await dispatch(
+        createCategory({ name: categoryName.trim(), token })
+      ).unwrap();
+      console.log("Created Category:", actionResult);
 
-      if (response.status === 401 || response.status === 422) {
-        dispatch({ type: "CLEAR_AUTH" });
-        navigate("/login");
+      // Check for errors in the result of the async thunk action
+      if (createCategory.rejected.match(actionResult)) {
+        setError(actionResult.payload || "Failed to create category");
+        setIsLoading(false);
         return;
       }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.msg || "Failed to create category");
-      }
-
-      const newCategory = await response.json();
-      dispatch(addCategories([newCategory]));
+      // Successfully created category, close the modal and reset form
+      dispatch(addToMyCategories(actionResult));
       onClose();
       setCategoryName("");
+      setIsLoading(false);
     } catch (err) {
       setError(err.message);
-    } finally {
       setIsLoading(false);
     }
   };

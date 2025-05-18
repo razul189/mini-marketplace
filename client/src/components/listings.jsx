@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
+import { fetchCategories } from "../store/categoriesSlice";
 import { addMyListings } from "../store/myListingsSlice";
-import { addCategories } from "../store/categoriesSlice";
+import { fetchUser } from "../store/authSlice";
 
 /**
  * Listings component that fetches and displays the authenticated user's listings.
@@ -12,29 +13,33 @@ import { addCategories } from "../store/categoriesSlice";
 export default function Listings() {
   // State for listings, categories, loading, and errors
   const [listings, setListings] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Redux auth state
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
-  const cachedCategories = useSelector((state) => state.categories.byId);
+  const categoriesState = useSelector((state) => state.categories);
+
+  // Categories from Redux
+  const cachedCategories = categoriesState.categories;
+  const cachedUser = useSelector((state) => state.auth.user);
+
+  // const cachedCategories = useSelector((state) => state.categories.byId);
   const cachedMyListings = useSelector((state) => state.myListings.byId);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   // Handle URL query parameters
   const [searchParams, setSearchParams] = useSearchParams();
-  const selectedCategoryId = searchParams.get("category_id") || "";
+  // const selectedCategoryId = searchParams.get("category_id") || "";
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [selectedCategoryListings, setSelectedCategoryListings] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState(null);
 
   // Fetch listings and categories when component mounts or category changes
   useEffect(() => {
-    console.log("useEFfect");
-
-    const fetchData = async () => {
-      //  console.log("fetchData");
-
+    const loadData = async () => {
       if (!isAuthenticated || !token) {
         setError("Please log in to view your listings");
         navigate("/login");
@@ -44,43 +49,49 @@ export default function Listings() {
       try {
         setIsLoading(true);
 
-        // Fetch categories
-        if (Object.values(cachedCategories).length === 0) {
-          const categoriesResponse = await fetch(
-            "http://localhost:5000/api/categories",
-            {
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-          if (categoriesResponse.status === 401) {
-            dispatch({ type: "CLEAR_AUTH" });
+        if (!cachedUser) {
+          const resultAction = await dispatch(fetchUser());
+          if (fetchUser.rejected.match(resultAction)) {
+            dispatch(logout());
             navigate("/login");
             return;
           }
-          if (!categoriesResponse.ok) {
-            throw new Error(
-              `Failed to fetch categories: ${categoriesResponse.status}`
-            );
-          }
-          const categoriesData = await categoriesResponse.json();
-          console.log("categoriesData:", categoriesData);
 
-          dispatch(addCategories(categoriesData));
-          setCategories(categoriesData);
-        } else {
-          setCategories(Object.values(cachedCategories));
+          const userData = resultAction.payload;
+
+          console.log("user Listings:", userData?.listings?.length);
+
+          // Extract and dispatch listings and favorites from userData
+          // if (userData?.listings?.length) {
+          //  dispatch(addMyListings(userData.listings));
+          // }
         }
 
-        // Fetch user's listings (with optional category filter)
-        const filteredListings = selectedCategoryId
-          ? Object.values(cachedMyListings).filter(
-              (listing) => listing.category_id === parseInt(selectedCategoryId)
-            )
-          : Object.values(cachedMyListings);
+        // Fetch categories if they're not already cached
+        if (cachedCategories.length === 0) {
+          const categoriesResult = await dispatch(fetchCategories());
+          console.log("categoriesResult", categoriesResult);
 
+          if (fetchCategories.rejected.match(categoriesResult)) {
+            throw new Error(
+              categoriesResult.payload || "Failed to load categories"
+            );
+          }
+        } else {
+          setSelectedCategoryListings(categoriesState.listings);
+        }
+
+        // Use the cached categories or set them from Redux store
+        //const categories = Object.values(cachedCategories);
+
+        // Fetch user's listings (with optional category filter)
+        // const filteredListings = selectedCategoryId
+        //   ? Object.values(cachedMyListings).filter(
+        //       (listing) => listing.category_id === parseInt(selectedCategoryId)
+        //     )
+        //   : Object.values(cachedMyListings);
+
+        /*
         if (filteredListings.length === 0) {
           const listingsUrl = selectedCategoryId
             ? `http://localhost:5000/api/me/listings?category_id=${selectedCategoryId}`
@@ -107,6 +118,7 @@ export default function Listings() {
         } else {
           setListings(filteredListings);
         }
+          */
       } catch (err) {
         setError(err.message);
       } finally {
@@ -114,24 +126,26 @@ export default function Listings() {
       }
     };
 
-    fetchData();
-  }, [
-    selectedCategoryId,
-    isAuthenticated,
-    token,
-    cachedCategories,
-    cachedMyListings,
-    dispatch,
-    navigate,
-  ]);
+    loadData();
+  }, [isAuthenticated, token, cachedCategories, dispatch]);
 
   // Handle category selection
   const handleCategoryChange = (e) => {
     const categoryId = e.target.value;
+    console.log("categoryId", categoryId);
+
     if (categoryId) {
-      setSearchParams({ category_id: categoryId });
+      setSelectedCategory(
+        cachedCategories.find((cat) => cat.id === Number(categoryId))
+      );
+      setSelectedCategoryListings(
+        cachedCategories.find((cat) => cat.id === Number(categoryId)).listings
+      );
+      setSelectedCategoryId(categoryId);
     } else {
-      setSearchParams({});
+      setSelectedCategoryListings(categoriesState.listings);
+      setSelectedCategory(null);
+      setSelectedCategoryId("");
     }
   };
 
@@ -258,14 +272,14 @@ export default function Listings() {
             }}
           >
             <option value="">All Categories</option>
-            {categories.map((category) => (
+            {cachedCategories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </select>
         </section>
-        {listings.length === 0 ? (
+        {selectedCategoryListings.length === 0 ? (
           <p
             style={{
               fontSize: "0.9rem",
@@ -283,7 +297,7 @@ export default function Listings() {
               margin: 0,
             }}
           >
-            {listings.map((listing) => (
+            {selectedCategoryListings.map((listing) => (
               <li
                 key={listing.id}
                 style={{

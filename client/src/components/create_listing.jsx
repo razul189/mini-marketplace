@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { addCategories } from "../store/categoriesSlice";
-import { addMyListings } from "../store/myListingsSlice";
-
+import { fetchCategories, createListing } from "../store/categoriesSlice";
+import { addToMyListings } from "../store/authSlice";
 /**
  * CreateListings modal component for creating a new item listing.
  * Displays a form in a modal, submits to the API, and requires authentication.
@@ -13,7 +12,7 @@ import { addMyListings } from "../store/myListingsSlice";
  * @param {Function} props.onClose - Callback to close the modal.
  */
 export default function CreateListings({ isOpen, onClose }) {
-  // State for form inputs, categories, error, and loading
+  // State for form inputs, error, and loading
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -21,45 +20,23 @@ export default function CreateListings({ isOpen, onClose }) {
     image_url: "",
     category_id: "",
   });
-  const [categories, setCategories] = useState([]);
+
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
   const token = useSelector((state) => state.auth.token); // fetch from redux store
-  const cachedCategories = useSelector((state) => state.categories.byId);
+  const cachedCategories = useSelector((state) => state.categories.categories);
+  //const categories = useSelector((state) => state.categories.allIds.map(id => state.categories.byId[id]));
+  const categoriesStatus = useSelector((state) => state.categories.status);
   const dispatch = useDispatch();
 
   // Fetch categories when modal opens
   useEffect(() => {
-    if (isOpen) {
-      const fetchCategories = async () => {
-        try {
-          if (Object.values(cachedCategories).length === 0) {
-            const response = await fetch(
-              "http://localhost:5000/api/categories",
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                },
-              }
-            );
-            if (!response.ok) {
-              throw new Error("Failed to fetch categories");
-            }
-            const data = await response.json();
-            dispatch(addCategories(data));
-            setCategories(data);
-          } else {
-            setCategories(Object.values(cachedCategories));
-          }
-        } catch (err) {
-          setError(err.message);
-        }
-      };
-      fetchCategories();
+    if (isOpen && categoriesStatus === "idle") {
+      dispatch(fetchCategories());
     }
-  }, [isOpen, cachedCategories, dispatch]);
+  }, [isOpen, categoriesStatus, dispatch]);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -72,25 +49,11 @@ export default function CreateListings({ isOpen, onClose }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/api/listings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...formData,
-          price: formData.price ? parseFloat(formData.price) : null,
-        }),
-      });
+      const data = await dispatch(createListing({ formData, token })).unwrap();
+      console.log("Created Listing:", data);
 
-      const data = await response.json();
+      dispatch(addToMyListings(data));
 
-      if (!response.ok) {
-        throw new Error(data.msg || "Failed to create listing");
-      }
-
-      dispatch(addMyListings([data]));
       onClose();
       navigate(`/listings/${data.id}`);
     } catch (err) {
@@ -288,7 +251,7 @@ export default function CreateListings({ isOpen, onClose }) {
               }}
             >
               <option value="">Select a category</option>
-              {categories.map((category) => (
+              {cachedCategories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>

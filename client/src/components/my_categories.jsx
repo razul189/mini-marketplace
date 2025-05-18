@@ -2,182 +2,110 @@ import { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "./navbar";
-
+import { fetchUser } from "../store/authSlice"; // adjust the path if needed
+import { fetchCategories } from "../store/categoriesSlice"; // adjust the path if needed
 /**
  * MyCategories component for viewing the authenticated user's categories.
  * Displays only the categories where the user has listings, with nested listings.
  */
 export default function MyCategories() {
-  // State for categories, loading, and errors
-  const [categories, setCategories] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Redux auth state
-  const token = useSelector((state) => state.auth.token);
-  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Fetch user's categories on mount
+  const {
+    token,
+    isAuthenticated,
+    user,
+    error: authError,
+  } = useSelector((state) => state.auth);
+  const cachedUser = useSelector((state) => state.auth.user);
+  const cachedMyCategories = useSelector((state) => state.auth.myCategories);
+  const cachedCategories = useSelector((state) => state.categories.categories);
+  const [categoriesWithListings, setCategoriesWithListings] = useState([]);
+
+  const [isLoading, setIsLoading] = useState(false);
+  console.log("cachedMyCategories", cachedMyCategories);
+
+  // console.log("CategoriesWithListings - ", categoriesWithListings);
+
   useEffect(() => {
-    const fetchCategories = async () => {
+    const loadUserData = async () => {
       if (!isAuthenticated || !token) {
-        setError("Please log in to view your categories");
         navigate("/login");
         return;
       }
 
-      try {
-        setIsLoading(true);
-        const response = await fetch(
-          "http://localhost:5000/api/me/categories",
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+      setIsLoading(true);
+      if (!cachedUser) {
+        const resultAction = await dispatch(fetchUser());
 
-        if (response.status === 401) {
-          dispatch({ type: "CLEAR_AUTH" });
+        if (fetchUser.rejected.match(resultAction)) {
+          dispatch(logout());
           navigate("/login");
           return;
         }
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch your categories");
-        }
-
-        const data = await response.json();
-        setCategories(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
       }
+
+      if (cachedCategories.length === 0) {
+        const categoriesResult = await dispatch(fetchCategories());
+        console.log("categoriesResult", categoriesResult);
+
+        if (fetchCategories.rejected.match(categoriesResult)) {
+          throw new Error(
+            categoriesResult.payload || "Failed to load categories"
+          );
+        }
+      }
+
+      setIsLoading(false);
     };
 
-    fetchCategories();
-  }, [isAuthenticated, token, dispatch, navigate]);
+    loadUserData();
+  }, []);
 
-  // Render loading state
   if (isLoading) {
     return (
       <div
-        style={{
-          minWidth: "100%",
-          backgroundColor: "#fff",
-          margin: 0,
-          padding: "1rem",
-        }}
+        style={{ minWidth: "100%", backgroundColor: "#fff", padding: "1rem" }}
       >
         <Navbar />
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
+        <h1 style={{ fontSize: "1.5rem", color: "#333" }}>
           Loading your categories...
         </h1>
       </div>
     );
   }
 
-  // Render error state
-  if (error) {
+  if (authError) {
     return (
       <div
-        style={{
-          minWidth: "100%",
-          backgroundColor: "#fff",
-          margin: 0,
-          padding: "1rem",
-        }}
+        style={{ minWidth: "100%", backgroundColor: "#fff", padding: "1rem" }}
       >
         <Navbar />
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
-          Error
-        </h1>
-        <p
-          style={{
-            fontSize: "0.9rem",
-            color: "#d32f2f",
-            margin: "0 0 0.75rem 0",
-          }}
-        >
-          {error}
-        </p>
-        <Link
-          to="/"
-          style={{
-            fontSize: "0.9rem",
-            color: "#1976d2",
-            textDecoration: "none",
-          }}
-        >
+        <h1 style={{ fontSize: "1.5rem", color: "#333" }}>Error</h1>
+        <p style={{ color: "#d32f2f" }}>{authError}</p>
+        <Link to="/" style={{ color: "#1976d2" }}>
           Back to Home
         </Link>
       </div>
     );
   }
 
-  // Render user's categories list
   return (
-    <div
-      style={{
-        minWidth: "100%",
-        backgroundColor: "#fff",
-        margin: 0,
-      }}
-    >
+    <div style={{ minWidth: "100%", backgroundColor: "#fff" }}>
       <Navbar />
-      <main
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "1rem",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: "600",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
+      <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "1rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: "600", color: "#333" }}>
           My Categories
         </h1>
         <section>
-          {categories.length === 0 ? (
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#333",
-                margin: "0",
-              }}
-            >
+          {cachedMyCategories.length === 0 ? (
+            <p style={{ fontSize: "0.9rem", color: "#333" }}>
               You have no categories with listings.
             </p>
           ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-              }}
-            >
-              {categories.map((category) => (
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {cachedMyCategories.map((category) => (
                 <li
                   key={category.id}
                   style={{
@@ -187,21 +115,11 @@ export default function MyCategories() {
                 >
                   <Link
                     to={`/category-listings/${category.id}`}
-                    style={{
-                      fontSize: "1.1rem",
-                      color: "#1976d2",
-                      textDecoration: "none",
-                    }}
+                    style={{ fontSize: "1.1rem", color: "#1976d2" }}
                   >
                     {category.name}
                   </Link>
-                  <p
-                    style={{
-                      fontSize: "0.9rem",
-                      color: "#555",
-                      margin: "0.25rem 0",
-                    }}
-                  >
+                  <p style={{ fontSize: "0.9rem", color: "#555" }}>
                     {category.listings.length} listing
                     {category.listings.length !== 1 ? "s" : ""}
                   </p>
@@ -217,7 +135,6 @@ export default function MyCategories() {
             marginTop: "1rem",
             fontSize: "0.9rem",
             color: "#1976d2",
-            textDecoration: "none",
           }}
         >
           View All My Listings

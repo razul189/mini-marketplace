@@ -6,11 +6,22 @@ import CreateCategory from "./create_category";
 import Navbar from "./navbar";
 import { addFavorites, removeFavorite } from "../store/favoritesSlice";
 import {
-  addMyListings,
+  fetchCategories,
+  deleteListing,
+  updateListing,
+} from "../store/categoriesSlice";
+import {
+  logout,
+  deleteMyListing,
   updateMyListing,
-  removeMyListing,
+  toggleFavorite,
+} from "../store/authSlice";
+import { fetchUser, updateFavoriteNote } from "../store/authSlice";
+// import { toggleFavorite } from "../store/favoritesSlice";
+import {
+  deleteListingWithFavorites,
+  // updateListingThunk,
 } from "../store/myListingsSlice";
-import { removeListing, updateListing } from "../store/listingsSlice";
 
 /**
  * Dashboard component that displays user profile, listings, and favorites.
@@ -18,9 +29,14 @@ import { removeListing, updateListing } from "../store/listingsSlice";
  */
 export default function Dashboard() {
   // State for user data, listings, favorites, loading, error, and modals
-  const [user, setUser] = useState(null);
+  // const [user, setUser] = useState(null);
+
+  // const categoriesState = useSelector((state) => state.categories);
+  // console.log("categoriesState", categoriesState);
+
+  // const cachedCategories = categoriesState.categories;
+
   const [listings, setListings] = useState([]);
-  const [favorites, setFavorites] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -29,12 +45,18 @@ export default function Dashboard() {
   const [editListing, setEditListing] = useState(null);
   const [isEditNoteModalOpen, setIsEditNoteModalOpen] = useState(false);
   const [editFavorite, setEditFavorite] = useState(null);
+  const favorites = useSelector((state) => Object.values(state.favorites.byId));
 
   const token = useSelector((state) => state.auth.token);
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
+  // console.log("isAuthenticated", isAuthenticated);
+
   const cachedUser = useSelector((state) => state.auth.user);
-  const cachedMyListings = useSelector((state) => state.myListings.byId);
-  const cachedFavorites = useSelector((state) => state.favorites.byId);
+  const cachedCategories = useSelector((state) => state.categories.categories);
+  const cachedMyListings = useSelector((state) => state.auth.myListings);
+  console.log("cachedMyListings - dashboard", cachedMyListings);
+
+  const cachedMyFavorites = useSelector((state) => state.auth.myFavorites);
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -59,131 +81,63 @@ export default function Dashboard() {
       try {
         setIsLoading(true);
 
-        // Fetch user
-        let currentUser = cachedUser;
         if (!cachedUser) {
-          const userResponse = await fetch("http://localhost:5000/api/me", {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          });
-          if (userResponse.status === 401 || userResponse.status === 422) {
-            dispatch({ type: "CLEAR_AUTH" });
+          const resultAction = await dispatch(fetchUser());
+          if (fetchUser.rejected.match(resultAction)) {
+            dispatch(logout());
             navigate("/login");
             return;
           }
-          if (!userResponse.ok) {
-            throw new Error("Failed to fetch user data");
-          }
-          currentUser = await userResponse.json();
-          dispatch({ type: "SET_USER", payload: currentUser });
-          setUser(currentUser);
+
+          const userData = resultAction.payload;
+
+          //console.log("user Listings:", userData?.listings?.length);
+
+          // Extract and dispatch listings and favorites from userData
+          //if (userData?.listings?.length) {
+          // dispatch(addMyListings(userData.listings));
+          // setListings(userData.listings);
+          //}
         } else {
-          setUser(cachedUser);
+          // If user is already cached, use cached listings and favorites
+          // setListings(Object.values(cachedMyListings));
         }
 
-        // Fetch listings
-        if (Object.values(cachedMyListings).length === 0) {
-          const listingsResponse = await fetch(
-            "http://localhost:5000/api/me/listings",
-            {
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-          if (
-            listingsResponse.status === 401 ||
-            listingsResponse.status === 422
-          ) {
-            dispatch({ type: "CLEAR_AUTH" });
-            navigate("/login");
-            return;
-          }
-          if (!listingsResponse.ok) {
-            throw new Error("Failed to fetch listings");
-          }
-          const listingsData = await listingsResponse.json();
-          console.log("listingsData:", listingsData);
+        // Fetch Listings if not present
+        if (cachedCategories.length === 0) {
+          const categoriesResult = await dispatch(fetchCategories());
+          console.log("categoriesResult", categoriesResult);
 
-          dispatch(addMyListings(listingsData));
-          setListings(listingsData);
-        } else {
-          setListings(Object.values(cachedMyListings));
-        }
-
-        // Always fetch favorites to ensure cache is up-to-date
-        const favoritesResponse = await fetch(
-          "http://localhost:5000/api/favorites",
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
+          if (fetchCategories.rejected.match(categoriesResult)) {
+            throw new Error(
+              categoriesResult.payload || "Failed to load categories"
+            );
           }
-        );
-        if (
-          favoritesResponse.status === 401 ||
-          favoritesResponse.status === 422
-        ) {
-          dispatch({ type: "CLEAR_AUTH" });
-          navigate("/login");
-          return;
         }
-        if (!favoritesResponse.ok) {
-          throw new Error("Failed to fetch favorites");
-        }
-        const favoritesData = await favoritesResponse.json();
-        dispatch(addFavorites(favoritesData));
-        setFavorites(favoritesData);
       } catch (err) {
         setError(err.message);
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchData();
-  }, [
-    isAuthenticated,
-    token,
-    cachedUser,
-    cachedMyListings,
-    navigate,
-    dispatch,
-  ]);
+  }, []);
 
   // Handle favorite deletion
   const handleDeleteFavorite = async (favoriteId) => {
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/favorites/${favoriteId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      const favorite = cachedMyFavorites.find((fav) => fav.id === favoriteId);
+      if (!favorite) return;
+
+      const res = await dispatch(
+        toggleFavorite({
+          id: favorite.item_listing_id,
+          note: favorite.note,
+          token,
+          isFavorited: true,
+        })
       );
-      if (response.status === 401 || response.status === 422) {
-        dispatch({ type: "CLEAR_AUTH" });
-        navigate("/login");
-        return;
-      }
-      // If favorite doesn't exist (e.g., already deleted), remove from cache
-      if (response.status === 404) {
-        dispatch(removeFavorite(favoriteId));
-        setFavorites(favorites.filter((fav) => fav.id !== favoriteId));
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to delete favorite");
-      }
-      dispatch(removeFavorite(favoriteId));
-      setFavorites(favorites.filter((fav) => fav.id !== favoriteId));
+      console.log("Deleted favorite:", res);
     } catch (err) {
       setError(err.message);
     }
@@ -193,47 +147,34 @@ export default function Dashboard() {
   const handleUpdateNote = async (e) => {
     e.preventDefault();
     if (!editFavorite) return;
+    console.log("editFavorite", editFavorite);
 
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/favorites/${editFavorite.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            item_listing_id: editFavorite.item_listing_id,
-            note: editFavorite.note ? editFavorite.note.trim() : null,
-          }),
+      const resultAction = await dispatch(
+        updateFavoriteNote({
+          id: editFavorite.id,
+          item_listing_id: editFavorite.item_listing_id,
+          note: editFavorite.note ? editFavorite.note.trim() : null,
+        })
+      );
+
+      if (updateFavoriteNote.rejected.match(resultAction)) {
+        const error = resultAction.payload;
+        if (error === "Unauthorized" || error === "Unprocessable Entity") {
+          dispatch(logout());
+          navigate("/login");
+          return;
         }
-      );
+        if (error === "Not Found") {
+          dispatch(removeFavorite(editFavorite.id));
+          setIsEditNoteModalOpen(false);
+          setEditFavorite(null);
+          return;
+        }
 
-      if (response.status === 401 || response.status === 422) {
-        dispatch({ type: "CLEAR_AUTH" });
-        navigate("/login");
-        return;
-      }
-      if (response.status === 404) {
-        // Favorite no longer exists, remove from cache
-        dispatch(removeFavorite(editFavorite.id));
-        setFavorites(favorites.filter((fav) => fav.id !== editFavorite.id));
-        setIsEditNoteModalOpen(false);
-        setEditFavorite(null);
-        return;
-      }
-      if (!response.ok) {
-        throw new Error("Failed to update note");
+        throw new Error(error);
       }
 
-      const updatedFavorite = await response.json();
-      dispatch(addFavorites([updatedFavorite]));
-      setFavorites((prevFavorites) =>
-        prevFavorites.map((fav) =>
-          fav.id === updatedFavorite.id ? updatedFavorite : fav
-        )
-      );
       setIsEditNoteModalOpen(false);
       setEditFavorite(null);
     } catch (err) {
@@ -244,127 +185,73 @@ export default function Dashboard() {
   // Handle delete listing
   const handleDeleteListing = async (listingId) => {
     try {
-      // Fetch favorites associated with the listing
-      const favoritesResponse = await fetch(
-        `http://localhost:5000/api/favorites?item_listing_id=${listingId}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
+      // 1. Delete Listing with Favorites.
+      const resultAction = await dispatch(
+        deleteMyListing({ listingId, token })
       );
-      if (
-        favoritesResponse.status === 401 ||
-        favoritesResponse.status === 422
-      ) {
-        dispatch({ type: "CLEAR_AUTH" });
-        navigate("/login");
-        return;
-      }
-      if (!favoritesResponse.ok) {
-        throw new Error("Failed to fetch favorites for listing");
-      }
-      const listingFavorites = await favoritesResponse.json();
 
-      // Delete each associated favorite
-      for (const favorite of listingFavorites) {
-        const deleteFavoriteResponse = await fetch(
-          `http://localhost:5000/api/favorites/${favorite.id}`,
-          {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        if (
-          deleteFavoriteResponse.status === 401 ||
-          deleteFavoriteResponse.status === 422
-        ) {
-          dispatch({ type: "CLEAR_AUTH" });
+      if (deleteListingWithFavorites.rejected.match(resultAction)) {
+        const error = resultAction.payload;
+        if (error === "Unauthorized") {
+          dispatch(logout());
           navigate("/login");
           return;
         }
-        if (
-          !deleteFavoriteResponse.ok &&
-          deleteFavoriteResponse.status !== 404
-        ) {
-          throw new Error(`Failed to delete favorite ${favorite.id}`);
+        if (error === "Forbidden") {
+          alert("You are not authorized to delete this listing.");
+          return;
         }
-        dispatch(removeFavorite(favorite.id));
+
+        throw new Error(error);
       }
 
-      // Delete the listing
-      const response = await fetch(
-        `http://localhost:5000/api/listings/${listingId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      if (response.status === 401 || response.status === 422) {
-        dispatch({ type: "CLEAR_AUTH" });
-        navigate("/login");
-        return;
-      }
-      if (response.ok) {
-        dispatch(removeMyListing(listingId));
-        dispatch(removeListing(listingId));
-        setListings(listings.filter((listing) => listing.id !== listingId));
-        // Update local favorites state to remove deleted favorites
-        setFavorites(
-          favorites.filter((fav) => fav.item_listing_id !== listingId)
-        );
-      } else if (response.status === 403) {
-        alert("You are not authorized to delete this listing.");
-      } else {
-        throw new Error("Failed to delete listing");
-      }
+      dispatch(deleteListing(listingId));
+
+      // Optimistically update local listings state
+      // setListings((prev) => prev.filter((listing) => listing.id !== listingId));
     } catch (err) {
       setError(err.message);
     }
   };
 
   // Handle update listing
-  const handleUpdateListing = async () => {
+  const handleUpdateListing = async (e) => {
     try {
-      const response = await fetch(
-        `http://localhost:5000/api/listings/${editListing.id}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+      e.preventDefault();
+      console.log("editListing");
+
+      const resultAction = await dispatch(
+        updateMyListing({
+          listing: {
+            ...editListing,
+            user_id: cachedUser.id,
           },
-          body: JSON.stringify({
-            title: editListing.title,
-            description: editListing.description,
-            price: editListing.price,
-            category_id: editListing.category?.id,
-            user_id: user.id,
-          }),
-        }
+          token,
+        })
       );
-      if (response.ok) {
-        const updatedListing = await response.json();
-        dispatch(updateMyListing(updatedListing));
-        dispatch(updateListing(updatedListing));
-        setListings((prevListings) =>
-          prevListings.map((l) =>
-            l.id === updatedListing.id ? updatedListing : l
-          )
-        );
-        setIsEditModalOpen(false);
-        setEditListing(null);
-      } else if (response.status === 403) {
-        alert("You are not authorized to edit this listing.");
-      } else {
-        throw new Error("Failed to update listing");
+
+      if (updateMyListing.rejected.match(resultAction)) {
+        const error = resultAction.payload;
+        if (error === "Unauthorized") {
+          dispatch(logout());
+          navigate("/login");
+          return;
+        }
+        if (error === "Forbidden") {
+          alert("You are not authorized to edit this listing.");
+          return;
+        }
+        throw new Error(error);
       }
+
+      const updatedListing = resultAction.payload;
+      dispatch(updateListing(updatedListing));
+
+      // setListings((prev) =>
+      //   prev.map((l) => (l.id === updatedListing.id ? updatedListing : l))
+      // );
+      setIsEditModalOpen(false);
+      setEditListing(null);
     } catch (err) {
       setError(err.message);
     }
@@ -466,7 +353,7 @@ export default function Dashboard() {
         >
           Dashboard
         </h1>
-        {user && (
+        {cachedUser && (
           <div>
             <section
               style={{
@@ -490,7 +377,7 @@ export default function Dashboard() {
                   margin: "0 0 0.25rem 0",
                 }}
               >
-                Username: {user.username}
+                Username: {cachedUser.username}
               </p>
               <p
                 style={{
@@ -499,7 +386,7 @@ export default function Dashboard() {
                   margin: "0 0 0.25rem 0",
                 }}
               >
-                Email: {user.email}
+                Email: {cachedUser.email}
               </p>
               <p
                 style={{
@@ -508,7 +395,7 @@ export default function Dashboard() {
                   margin: "0 0 0.25rem 0",
                 }}
               >
-                Joined: {new Date(user.created_at).toLocaleDateString()}
+                Joined: {new Date(cachedUser.created_at).toLocaleDateString()}
               </p>
             </section>
 
@@ -559,7 +446,7 @@ export default function Dashboard() {
               >
                 My Listings
               </h2>
-              {listings.length === 0 ? (
+              {cachedMyListings.length === 0 ? (
                 <p
                   style={{
                     fontSize: "0.9rem",
@@ -577,7 +464,7 @@ export default function Dashboard() {
                     margin: 0,
                   }}
                 >
-                  {listings.map((listing) => (
+                  {cachedMyListings.map((listing) => (
                     <li
                       key={listing.id}
                       style={{
@@ -689,7 +576,7 @@ export default function Dashboard() {
               >
                 My Favorites
               </h2>
-              {favorites.length === 0 ? (
+              {cachedMyFavorites.length === 0 ? (
                 <p
                   style={{
                     fontSize: "0.9rem",
@@ -707,7 +594,7 @@ export default function Dashboard() {
                     margin: 0,
                   }}
                 >
-                  {favorites.map((favorite) => (
+                  {cachedMyFavorites.map((favorite) => (
                     <li
                       key={favorite.id}
                       style={{
@@ -828,12 +715,7 @@ export default function Dashboard() {
             }}
           >
             <h2>Edit Listing</h2>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                await handleUpdateListing();
-              }}
-            >
+            <form onSubmit={async (e) => handleUpdateListing(e)}>
               <input
                 type="text"
                 value={editListing?.title || ""}

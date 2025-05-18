@@ -10,12 +10,7 @@ from flask_jwt_extended import create_access_token, get_jwt_identity, jwt_requir
 
 # --- Schema Definitions ---
 
-
 class UserSchema(SQLAlchemyAutoSchema):
-    """
-    Schema for serializing and deserializing User model instances.
-    """
-
     class Meta:
         model = User
         load_instance = True
@@ -24,20 +19,10 @@ class UserSchema(SQLAlchemyAutoSchema):
         dump_only = ("id", "created_at", "password_hash")
 
     id = fields.Integer(dump_only=True)
-    password = fields.String(
-        load_only=True,
-        required=True,
-        validate=validate.Length(min=6),
-    )
-    links = fields.Method("get_links")
-
-    def get_links(self, obj):
-        return {
-            "self": "/api/me",
-            "listings": "/api/me/listings",
-            "categories": "/api/me/categories",
-        }
-
+    # password = fields.String(load_only=True, required=True, validate=validate.Length(min=6))
+    listings = fields.Nested("ItemListingSchema", many=True, exclude=("owner",))
+    categories = fields.Nested("CategorySchema", many=True, exclude=("listings",))
+    favorites = fields.Nested("FavoriteSchema", many=True, exclude=("listing",))
 
 class CategorySchema(SQLAlchemyAutoSchema):
     """
@@ -54,14 +39,6 @@ class CategorySchema(SQLAlchemyAutoSchema):
     id = fields.Integer(dump_only=True)
     name = fields.String(required=True)
     listings = fields.Nested("ItemListingSchema", many=True, dump_only=True)
-    links = fields.Method("get_links")
-
-    def get_links(self, obj):
-        return {
-            "self": f"/api/categories/{obj.id}",
-            "listings": f"/api/listings?category_id={obj.id}",
-        }
-
 
 class ItemListingSchema(SQLAlchemyAutoSchema):
     """
@@ -86,15 +63,9 @@ class ItemListingSchema(SQLAlchemyAutoSchema):
     category = fields.Nested(
         "CategorySchema", only=("id", "name"), dump_only=True
     )  # Added for category info
-    owner = fields.Nested("UserSchema")  # Added for category info
-    links = fields.Method("get_links")
-
-    def get_links(self, obj):
-        return {
-            "self": f"/api/listings/{obj.id}",
-            "owner": f"/api/users/{obj.user_id}",
-            "category": f"/api/categories/{obj.category_id}",
-        }
+    owner = fields.Nested("UserSchema", only=("id", "username"))
+    # Added for category info
+    
 
 
 class FavoriteSchema(SQLAlchemyAutoSchema):
@@ -118,13 +89,6 @@ class FavoriteSchema(SQLAlchemyAutoSchema):
     listing = fields.Nested(
         ItemListingSchema, dump_only=True
     )  # Includes category via ItemListing
-    links = fields.Method("get_links")
-
-    def get_links(self, obj):
-        return {
-            "self": f"/api/favorites/{obj.id}",
-            "listing": f"/api/listings/{obj.item_listing_id}",
-        }
     
 
 # --- Schema Instances ---
@@ -171,17 +135,56 @@ class LoginResource(Resource):
         return {"msg": "Bad credentials"}, 401
 
 
+# class MeResource(Resource):
+#     @jwt_required()
+#     def get(self):
+#         """Retrieve authenticated user's profile."""
+#         uid_str = get_jwt_identity()
+#         try:
+#             uid = int(uid_str)
+#         except (TypeError, ValueError):
+#             abort(400, description="Invalid user ID format")
+#         user = User.query.get_or_404(uid)
+#         return user_schema.dump(user), 200
+
 class MeResource(Resource):
     @jwt_required()
     def get(self):
-        """Retrieve authenticated user's profile."""
+        """Retrieve authenticated user's profile with categories and nested listings."""
         uid_str = get_jwt_identity()
         try:
             uid = int(uid_str)
         except (TypeError, ValueError):
             abort(400, description="Invalid user ID format")
+
         user = User.query.get_or_404(uid)
-        return user_schema.dump(user), 200
+
+        # Fetch user's categories and their listings
+        categories = Category.query.join(ItemListing).filter(ItemListing.user_id == uid).distinct().all()
+
+        # Structure the response
+        categories_with_listings = []
+        for category in categories:
+            user_listings = ItemListing.query.filter_by(user_id=uid, category_id=category.id).all()
+            category_data = cat_schema.dump(category)
+            category_data["listings"] = listings_schema.dump(user_listings)
+            categories_with_listings.append(category_data)
+
+        # Fetch user's favorites
+        favorites = Favorite.query.filter_by(user_id=uid).all()
+        favorites_data = favs_schema.dump(favorites)  # Serialize favorites
+
+        # Build the final response
+        response = {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "created_at": user.created_at.isoformat(),  # Convert datetime to ISO format
+            "categories": categories_with_listings,
+            "favorites": favorites_data,  # Include serialized favorites
+        }
+
+        return response, 200
 
 
 class MyCategoriesResource(Resource):
@@ -388,6 +391,20 @@ class ListingResource(Resource):
         db.session.commit()
         return listing_schema.dump(listing), 200
 
+    # @jwt_required()
+    # def delete(self, id):
+    #     """Delete an item listing, impacts 'My Categories' if last in category."""
+    #     uid_str = get_jwt_identity()
+    #     try:
+    #         uid = int(uid_str)
+    #     except (TypeError, ValueError):
+    #         abort(400, description="Invalid user ID format")
+    #     listing = ItemListing.query.get_or_404(id)
+    #     if listing.user_id != uid:
+    #         abort(403)
+    #     db.session.delete(listing)
+    #     db.session.commit()
+    #     return "", 204
     @jwt_required()
     def delete(self, id):
         """Delete an item listing, impacts 'My Categories' if last in category."""
@@ -396,12 +413,24 @@ class ListingResource(Resource):
             uid = int(uid_str)
         except (TypeError, ValueError):
             abort(400, description="Invalid user ID format")
+
         listing = ItemListing.query.get_or_404(id)
         if listing.user_id != uid:
             abort(403)
+
+        # NEW: Delete all Favorites associated with this listing
+        favorites = Favorite.query.filter_by(item_listing_id=listing.id).all()
+        print(f"Deleting {len(favorites)} favorites associated with listing ID {listing.id}")
+        
+        for fav in favorites:
+            db.session.delete(fav)
+
+        # Now delete the listing
         db.session.delete(listing)
         db.session.commit()
+
         return "", 204
+
 
 
 class MyListingsResource(Resource):

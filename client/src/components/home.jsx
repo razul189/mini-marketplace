@@ -1,89 +1,80 @@
 import Navbar from "./navbar";
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { addListings } from "../store/listingsSlice";
-import { addCategories } from "../store/categoriesSlice";
+import { fetchListings } from "../store/listingsSlice";
+import { fetchCategories } from "../store/categoriesSlice";
 import { useDispatch, useSelector } from "react-redux";
 
-/**
- * Home component for the application's landing page.
- */
 export default function Home() {
-  // State for listings, categories, loading, and errors
   const [listings, setListings] = useState([]);
-  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Handle URL query parameters
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedCategoryId = searchParams.get("category_id") || "";
-  const cachedCategories = useSelector((state) => state.categories.byId);
-  const cachedListings = useSelector((state) => state.listings.byId);
+  // const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
+
   const dispatch = useDispatch();
 
-  // Fetch listings and categories when component mounts or category changes
-  useEffect(() => {
-    const fetchData = async () => {
-      console.log("fetchData()");
+  const categoriesState = useSelector((state) => state.categories);
 
+  const cachedCategories = categoriesState.categories;
+  const [selectedCategoryListings, setSelectedCategoryListings] = useState([]);
+
+  //const cachedListings = listingsState.byId;
+
+  console.log("selectedCategoryListings", selectedCategoryListings);
+
+  useEffect(() => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
-        // Fetch categories
-        if (Object.values(cachedCategories).length === 0) {
-          const categoriesResponse = await fetch(
-            "http://localhost:5000/api/categories",
-            {
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          if (!categoriesResponse.ok) {
+        // Fetch categories if not already loaded
+        if (cachedCategories.length === 0) {
+          const categoriesResult = await dispatch(fetchCategories());
+          console.log("categoriesResult", categoriesResult);
+
+          if (fetchCategories.rejected.match(categoriesResult)) {
             throw new Error(
-              `Failed to fetch categories: ${categoriesResponse.status}`
+              categoriesResult.payload || "Failed to load categories"
             );
           }
-          const categoriesData = await categoriesResponse.json();
-          dispatch(addCategories(categoriesData));
-          setCategories(categoriesData);
         } else {
-          setCategories(Object.values(cachedCategories));
+          setSelectedCategoryListings(categoriesState.listings);
         }
 
-        // Fetch listings (with optional category filter)
+        // Fetch listings if not already cached for this category
+        // const filteredListings = selectedCategoryId
+        //   ? Object.values(cachedListings).filter(
+        //       (listing) => listing.category_id === parseInt(selectedCategoryId)
+        //     )
+        //   : Object.values(cachedListings);
+        // console.log("cachedCategoriesss - ", cachedCategories);
 
-        const filteredListings = selectedCategoryId
-          ? Object.values(cachedListings).filter(
-              (listing) => listing.category_id === parseInt(selectedCategoryId)
-            )
+        /*  const filteredListings = selectedCategoryId 
+          ? cachedCategories[selectedCategoryId].listings
           : Object.values(cachedListings);
-
-        console.log("filteredListings:", filteredListings);
-
+          */
+        //console.log("filtered - ", filteredListings);
+        // console.log("filtered2 - ", filteredListings1);
+        /*
         if (filteredListings.length === 0) {
-          const listingsUrl = selectedCategoryId
-            ? `http://localhost:5000/api/listings?category_id=${selectedCategoryId}`
-            : "http://localhost:5000/api/listings";
-          const listingsResponse = await fetch(listingsUrl, {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-          if (!listingsResponse.ok) {
+          const listingsResult = await dispatch(
+            fetchListings(selectedCategoryId)
+          );
+          if (fetchListings.rejected.match(listingsResult)) {
             throw new Error(
-              `Failed to fetch listings: ${listingsResponse.status}`
+              listingsResult.payload || "Failed to load listings"
             );
           }
-          const listingsData = await listingsResponse.json();
-          console.log("listingsData:", listingsData);
 
-          dispatch(addListings(listingsData));
-          setListings(listingsData);
+          setListings(listingsResult.payload);
         } else {
           setListings(filteredListings);
         }
+        */
       } catch (err) {
         setError(err.message);
       } finally {
@@ -91,20 +82,32 @@ export default function Home() {
       }
     };
 
-    fetchData();
-  }, [selectedCategoryId, cachedCategories, cachedListings, dispatch]);
+    loadData();
+  }, [dispatch, cachedCategories]);
 
-  // Handle category selection
   const handleCategoryChange = (e) => {
     const categoryId = e.target.value;
+    console.log("categoryId", categoryId);
+
     if (categoryId) {
-      setSearchParams({ category_id: categoryId });
+      setSelectedCategory(
+        cachedCategories.find((cat) => cat.id === Number(categoryId))
+      );
+      setSelectedCategoryListings(
+        cachedCategories.find((cat) => cat.id === Number(categoryId)).listings
+      );
+      setSelectedCategoryId(categoryId);
     } else {
-      setSearchParams({});
+      setSelectedCategoryListings(categoriesState.listings);
+      setSelectedCategory(null);
+      setSelectedCategoryId("");
     }
   };
 
-  // Render loading state
+  // -----------------------
+  // UI Rendering (unchanged)
+  // -----------------------
+
   if (isLoading) {
     return (
       <div
@@ -129,7 +132,6 @@ export default function Home() {
     );
   }
 
-  // Render error state
   if (error) {
     return (
       <div
@@ -245,14 +247,14 @@ export default function Home() {
             }}
           >
             <option value="">All Categories</option>
-            {categories.map((category) => (
+            {cachedCategories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
               </option>
             ))}
           </select>
         </section>
-        {listings.length === 0 ? (
+        {selectedCategoryListings.length === 0 ? (
           <p
             style={{
               fontSize: "0.9rem",
@@ -270,7 +272,7 @@ export default function Home() {
               margin: 0,
             }}
           >
-            {listings.map((listing) => (
+            {selectedCategoryListings.map((listing) => (
               <li
                 key={listing.id}
                 style={{

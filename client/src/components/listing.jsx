@@ -1,102 +1,85 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import Navbar from "./navbar";
-import { addFavorites } from "../store/favoritesSlice";
-import { addListings } from "../store/listingsSlice";
 
-/**
- * Listing component that fetches and displays details of a single item listing
- * based on the ID provided in the URL, with a button to toggle favorite status and add a note.
- */
+import Navbar from "./navbar";
+import { fetchCategories } from "../store/categoriesSlice";
+import { fetchUser, toggleFavorite, logout } from "../store/authSlice";
+
+import { fetchListingById } from "../store/listingsSlice";
+// import { toggleFavorite, fetchFavoriteStatus } from "../store/favoritesSlice";
+
 export default function Listing() {
-  // State for listing data, favorite status, note, loading, and errors
-  const [listing, setListing] = useState(null);
+  const { id } = useParams();
+  console.log("id", id);
+
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const token = useSelector((state) => state.auth.token);
+  const cachedUser = useSelector((state) => state.auth.user);
+  const cachedCategories = useSelector((state) => state.categories.categories); // All Categories from Redux
+  const listings = useSelector((state) => state.categories.listings); // All Listings
+  const listing = listings.find((listing) => listing.id === parseInt(id)); // Single Listing
+  const cachedMyFavorites = useSelector((state) => state.auth.myFavorites);
+  const favorite = cachedMyFavorites.find(
+    (favorite) => favorite.item_listing_id === parseInt(id)
+  );
+  // Redux state
+  //const listing = useSelector((state) => state.listings.byId[id]);
+  // const cachedFavorites = useSelector((state) => state.favorites.byId);
+  console.log("cachedMyFavorites", cachedMyFavorites);
+
   const [isFavorited, setIsFavorited] = useState(false);
   const [note, setNote] = useState("");
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  console.log("isFavorited", isFavorited);
 
-  // Extract listing ID from URL parameters
-  const { id } = useParams();
-
-  // Get JWT token from Redux store
-  const token = useSelector((state) => state.auth.token);
-  const cachedListings = useSelector((state) => state.listings.byId);
-  const cachedFavorites = useSelector((state) => state.favorites.byId);
-  const dispatch = useDispatch();
-
-  // Fetch listing and favorite status when component mounts or ID changes
   useEffect(() => {
-    const fetchListingAndFavorites = async () => {
+    const loadData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
 
-        // Fetch listing
+        if (!cachedUser) {
+          const resultAction = await dispatch(fetchUser());
+          console.log("resultAction", resultAction);
+          if (resultAction?.error?.message === "Rejected") {
+            console.log("fetchUser.error.message");
 
-        const cachedListing = cachedListings[id];
-        if (!cachedListing) {
-          const listingResponse = await fetch(
-            `http://localhost:5000/api/listings/${id}`,
-            {
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
-
-          if (!listingResponse.ok) {
-            if (listingResponse.status === 404) {
-              throw new Error("Listing not found");
-            }
-            throw new Error(
-              `Failed to fetch listing: ${listingResponse.status}`
-            );
+            dispatch(logout());
+            navigate("/login");
+            return;
           }
 
-          const listingData = await listingResponse.json();
-          dispatch(addListings([listingData]));
-          setListing(listingData);
-        } else {
-          setListing(cachedListing);
+          // if (fetchUser.rejected.match(resultAction)) {
+          //   dispatch(logout());
+          //   navigate("/login");
+          //   return;
+          // }
+
+          const userData = resultAction.payload;
+
+          console.log("user Listings:", userData?.listings?.length);
+
+          // Extract and dispatch listings and favorites from userData
+          if (userData?.listings?.length) {
+            dispatch(addMyListings(userData.listings));
+            // setListings(userData.listings);
+          }
         }
 
-        // Fetch favorites if authenticated
-        if (token) {
-          const favorite = Object.values(cachedFavorites).find(
-            (fav) => fav.item_listing_id === parseInt(id)
-          );
-          if (!favorite) {
-            const favoritesResponse = await fetch(
-              `http://localhost:5000/api/favorites`,
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
+        // Fetch categories if not already loaded
+        if (cachedCategories.length === 0) {
+          const categoriesResult = await dispatch(fetchCategories());
+          console.log("loadData");
+          console.log("categoriesResult", categoriesResult);
 
-            if (
-              favoritesResponse.status === 401 ||
-              favoritesResponse.status === 422
-            ) {
-              setIsFavorited(false);
-            } else if (!favoritesResponse.ok) {
-              throw new Error("Failed to fetch favorites");
-            } else {
-              const favoritesData = await favoritesResponse.json();
-              dispatch(addFavorites(favoritesData));
-              const fav = favoritesData.find(
-                (fav) => fav.item_listing_id === parseInt(id)
-              );
-              setIsFavorited(!!fav);
-              setNote(fav?.note || "");
-            }
-          } else {
-            setIsFavorited(true);
-            setNote(favorite.note || "");
+          if (fetchCategories.rejected.match(categoriesResult)) {
+            throw new Error(
+              categoriesResult.payload || "Failed to load categories"
+            );
           }
         }
       } catch (err) {
@@ -106,10 +89,33 @@ export default function Listing() {
       }
     };
 
-    fetchListingAndFavorites();
-  }, [id, token, cachedFavorites, cachedListings, dispatch]);
+    loadData();
+  }, [dispatch, cachedCategories]);
 
-  // Toggle favorite status
+  // useEffect(() => {
+  //   // for favorites
+  //   console.log("Favorite:", !!favorite);
+
+  //   setIsFavorited(!!favorite ? true : false);
+  //   setNote(favorite?.note || "");
+  // }, [cachedMyFavorites, id]);
+
+  // Fetch listing and favorite status when component mounts
+  //useEffect(() => {
+  // dispatch(fetchListingById({ id }));
+
+  useEffect(() => {
+    if (cachedUser) {
+      // const favorite = cachedUser.favorites.find(
+      //   (favorite) => favorite.listing_id === parseInt(id)
+      // );
+      console.log("favorite", favorite);
+
+      setIsFavorited(!!favorite);
+      setNote(favorite?.note || "");
+    }
+  }, [cachedUser, id, token]);
+
   const handleToggleFavorite = async () => {
     if (!token) {
       setError("Please log in to favorite this listing");
@@ -118,72 +124,8 @@ export default function Listing() {
 
     setIsFavoriteLoading(true);
     try {
-      if (isFavorited) {
-        // Find the favorite record to delete
-        const favoritesResponse = await fetch(
-          `http://localhost:5000/api/favorites`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (!favoritesResponse.ok) {
-          throw new Error("Failed to fetch favorites for deletion");
-        }
-
-        const favoritesData = await favoritesResponse.json();
-        const favorite = favoritesData.find(
-          (fav) => fav.item_listing_id === parseInt(id)
-        );
-
-        if (favorite) {
-          const deleteResponse = await fetch(
-            `http://localhost:5000/api/favorites/${favorite.id}`,
-            {
-              method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-            }
-          );
-
-          if (!deleteResponse.ok) {
-            if (deleteResponse.status === 403) {
-              throw new Error("You are not authorized to remove this favorite");
-            }
-            throw new Error("Failed to remove favorite");
-          }
-
-          setIsFavorited(false);
-          setNote("");
-        }
-      } else {
-        // Add new favorite with note
-        const addResponse = await fetch(`http://localhost:5000/api/favorites`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            item_listing_id: parseInt(id),
-            note: note.trim() || null,
-          }),
-        });
-
-        if (!addResponse.ok) {
-          if (addResponse.status === 400) {
-            throw new Error("Invalid listing ID");
-          }
-          throw new Error("Failed to add favorite");
-        }
-
-        setIsFavorited(true);
-      }
+      await dispatch(toggleFavorite({ id, note, token, isFavorited }));
+      setIsFavorited(!isFavorited);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -191,8 +133,8 @@ export default function Listing() {
     }
   };
 
-  // Render loading state
-  if (isLoading) {
+  // Loading and error states
+  if (!listing) {
     return (
       <div
         style={{
@@ -203,20 +145,11 @@ export default function Listing() {
         }}
       >
         <Navbar />
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
-          Loading listing...
-        </h1>
+        <h1>Loading listing...</h1>
       </div>
     );
   }
 
-  // Render error state
   if (error) {
     return (
       <div
@@ -228,208 +161,63 @@ export default function Listing() {
         }}
       >
         <Navbar />
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
-          Error
-        </h1>
-        <p
-          style={{
-            fontSize: "0.9rem",
-            color: "#d32f2f",
-            margin: "0 0 0.75rem 0",
-          }}
-        >
-          {error}
-        </p>
-        <Link
-          to="/"
-          style={{
-            fontSize: "0.9rem",
-            color: "#1976d2",
-            textDecoration: "none",
-          }}
-        >
-          Back to Home
-        </Link>
+        <h1>Error</h1>
+        <p>{error}</p>
+        <Link to="/">Back to Home</Link>
       </div>
     );
   }
 
-  // Render listing details
   return (
-    <div
-      style={{
-        minWidth: "100%",
-        backgroundColor: "#fff",
-        margin: 0,
-      }}
-    >
+    <div style={{ minWidth: "100%", backgroundColor: "#fff", margin: 0 }}>
       <Navbar />
-      <main
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "1rem",
-        }}
-      >
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: "600",
-            color: "#333",
-            margin: "0 0 1rem 0",
-          }}
-        >
-          Listing Details
-        </h1>
-        {listing && (
-          <div
+      <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "1rem" }}>
+        <h1>Listing Details</h1>
+        <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+          <h2>{listing.title}</h2>
+          <p>{listing.description || "No description"}</p>
+          {listing.price && <p>Price: ${listing.price.toFixed(2)}</p>}
+          {listing.image_url && (
+            <img
+              src={listing.image_url}
+              alt={listing.title}
+              style={{ width: "100%" }}
+            />
+          )}
+          <p>Category: {listing.category?.name || "Unknown"}</p>
+          <p>Posted by: {listing.owner?.username || "Unknown"}</p>
+          <p>Created: {new Date(listing.created_at).toLocaleDateString()}</p>
+
+          <div style={{ marginBottom: "0.75rem" }}>
+            <label htmlFor="favorite_note">Note (optional)</label>
+            <textarea
+              id="favorite_note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Add a note about this favorite..."
+              rows={3}
+              style={{ width: "100%", padding: "0.5rem" }}
+              disabled={isFavorited || isFavoriteLoading}
+            />
+          </div>
+
+          <button
+            onClick={handleToggleFavorite}
+            disabled={isFavoriteLoading}
             style={{
-              maxWidth: "600px",
-              margin: "0 auto",
+              width: "100%",
+              padding: "0.5rem",
+              backgroundColor: isFavorited ? "#d32f2f" : "#1976d2",
+              color: "#fff",
             }}
           >
-            <h2
-              style={{
-                fontSize: "1.25rem",
-                fontWeight: "600",
-                color: "#333",
-                margin: "0 0 0.5rem 0",
-              }}
-            >
-              {listing.title}
-            </h2>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#555",
-                margin: "0 0 0.5rem 0",
-              }}
-            >
-              {listing.description || "No description"}
-            </p>
-            {listing.price && (
-              <p
-                style={{
-                  fontSize: "0.9rem",
-                  color: "#333",
-                  margin: "0 0 0.5rem 0",
-                }}
-              >
-                Price: ${listing.price.toFixed(2)}
-              </p>
-            )}
-            {listing.image_url && (
-              <img
-                src={listing.image_url}
-                alt={listing.title}
-                style={{
-                  maxWidth: "100%",
-                  height: "auto",
-                  margin: "0 0 0.5rem 0",
-                }}
-              />
-            )}
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#333",
-                margin: "0 0 0.5rem 0",
-              }}
-            >
-              Category: {listing.category?.name || "Unknown"}
-            </p>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#333",
-                margin: "0 0 0.5rem 0",
-              }}
-            >
-              Posted by: {listing.owner?.username || "Unknown"}
-            </p>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#333",
-                margin: "0 0 0.5rem 0",
-              }}
-            >
-              Created: {new Date(listing.created_at).toLocaleDateString()}
-            </p>
-            <div style={{ marginBottom: "0.75rem" }}>
-              <label
-                htmlFor="favorite_note"
-                style={{
-                  display: "block",
-                  fontSize: "0.9rem",
-                  color: "#333",
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Note (optional)
-              </label>
-              <textarea
-                id="favorite_note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Add a note about this favorite..."
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #e0e0e0",
-                  fontSize: "0.9rem",
-                  color: "#333",
-                  resize: "vertical",
-                }}
-                disabled={isFavorited || isFavoriteLoading}
-              />
-            </div>
-            <button
-              onClick={handleToggleFavorite}
-              disabled={isFavoriteLoading}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                backgroundColor: isFavorited ? "#d32f2f" : "#1976d2",
-                color: "#fff",
-                border: "none",
-                fontSize: "0.9rem",
-                cursor: isFavoriteLoading ? "not-allowed" : "pointer",
-                margin: "0.75rem 0",
-              }}
-            >
-              {isFavoriteLoading
-                ? "Processing..."
-                : isFavorited
-                ? "Remove from Favorites"
-                : "Add to Favorites"}
-            </button>
-            <p
-              style={{
-                fontSize: "0.9rem",
-                color: "#333",
-                margin: "0",
-              }}
-            >
-              <Link
-                to="/"
-                style={{
-                  color: "#1976d2",
-                  textDecoration: "none",
-                }}
-              >
-                Back to Home
-              </Link>
-            </p>
-          </div>
-        )}
+            {isFavoriteLoading
+              ? "Processing..."
+              : isFavorited
+              ? "Remove from Favorites"
+              : "Add to Favorites"}
+          </button>
+        </div>
       </main>
     </div>
   );
